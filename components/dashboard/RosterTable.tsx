@@ -47,12 +47,25 @@ function sortValue(player: PlayerDetail, key: SortKey) {
 }
 
 export function RosterTable({ players }: RosterTableProps) {
-  const [sortKey, setSortKey] = useState<SortKey>("ovr");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
-  const [activePlayer, setActivePlayer] = useState<PlayerDetail | null>(null);
+const [sortKey, setSortKey] = useState<SortKey>("ovr");
+const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+const [searchQuery, setSearchQuery] = useState("");
+const [activePlayer, setActivePlayer] = useState<PlayerDetail | null>(null);
 
-  const sortedPlayers = useMemo(() => {
-    return [...players].sort((a, b) => {
+const sortedPlayers = useMemo(() => {
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+
+  return [...players]
+    .filter((player) => {
+      if (!normalizedSearch) return true;
+
+      return (
+        player.name.toLowerCase().includes(normalizedSearch) ||
+        player.teamDesignation.toLowerCase().includes(normalizedSearch) ||
+        String(player.grade).includes(normalizedSearch)
+      );
+    })
+    .sort((a, b) => {
       const aValue = sortValue(a, sortKey);
       const bValue = sortValue(b, sortKey);
       const modifier = sortDirection === "asc" ? 1 : -1;
@@ -63,7 +76,7 @@ export function RosterTable({ players }: RosterTableProps) {
 
       return ((aValue as number) - (bValue as number)) * modifier;
     });
-  }, [players, sortDirection, sortKey]);
+}, [players, searchQuery, sortDirection, sortKey]);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -85,7 +98,16 @@ export function RosterTable({ players }: RosterTableProps) {
             </div>
             <h2 className="mt-1 text-2xl font-black italic uppercase text-white">Leaderboard</h2>
           </div>
-          <div className="text-xs font-bold uppercase text-zinc-500">Click any row for player deep dive</div>
+<div className="flex flex-col gap-2 md:items-end">
+  <input
+    type="search"
+    value={searchQuery}
+    onChange={(event) => setSearchQuery(event.target.value)}
+    placeholder="Search players, team, or grade..."
+    className="h-10 w-full rounded-md border border-court-line bg-court-elevated px-3 text-sm font-bold text-white outline-none transition placeholder:text-zinc-600 focus:border-cyan-400 md:w-72"
+  />
+  <div className="text-xs font-bold uppercase text-zinc-500">Click any row for player deep dive</div>
+</div>
         </div>
 
         <div className="max-h-[760px] overflow-auto">
