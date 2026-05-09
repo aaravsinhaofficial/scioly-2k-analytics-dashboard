@@ -13,14 +13,14 @@ interface TournamentUploadProps {
 const sampleCsv = `Event,Rank,School,Team,Students,Medal
 Water Quality,2,Obra D Tompkins High School,A,"Jack Lee; Mrinal Rao",Yes
 Anatomy & Physiology,4,Obra D Tompkins High School,A,"Samanyu Pochanapeddi; Maya Iyer",Yes
-Tower,7,Obra D Tompkins High School,A,"Aarav Shah; Nisha Patel",No
+Tower,7,Obra D Tompkins High School,A,"Aarav Sinha; Nisha Patel",No
 Disease Detectives,1,Seven Lakes High School,A,"Other Student",Yes`;
 
 const manualSample = `Cy Falls Regional
 2026-03-08
 Schools: Obra D Tompkins High School; Cy Falls High School; Dulles High School
 Water Quality: Jack Lee; Mrinal Rao A #2
-Tower: Aarav Shah; Nisha Patel A #7`;
+Tower: Aarav Sinha; Nisha Patel A #7`;
 
 export function TournamentUpload({ currentUser }: TournamentUploadProps) {
   const [mode, setMode] = useState<TournamentSourceType>("duosmium_csv");

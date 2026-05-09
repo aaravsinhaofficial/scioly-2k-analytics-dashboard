@@ -52,6 +52,7 @@ Copy `.env.example` to `.env.local` and fill in:
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
+DEFAULT_ADMIN_EMAILS=aarav@example.com,aaravsinhaofficial@gmail.com
 CRON_SECRET=
 NEXT_PUBLIC_SCHOOL_NAME="Obra D Tompkins High School"
 SCIOLY_ELO_ENDPOINT=
@@ -75,7 +76,7 @@ SCIOLY_ELO_ENDPOINT=
 
 - `/signup` creates a Supabase Auth user.
 - New users are inserted into `students` automatically by the `handle_new_auth_user` database trigger.
-- New accounts default to `viewer`, `60` OVR, and `0` points.
+- New accounts default to `viewer`, `60` OVR, and `0` points, except emails in `DEFAULT_ADMIN_EMAILS`.
 - `/login` signs users in with email/password.
 - `/reset-password` sends reset emails and lets signed-in recovery sessions set a new password.
 - The app falls back to demo mode only when Supabase env vars are missing.
@@ -84,7 +85,7 @@ Admins can promote users, edit grades, and manage listed events from `/admin/man
 
 ## Production Notes
 
-- New users should be inserted into `students` after email verification, defaulting to `viewer`.
+- Aarav Sinha is the default demo admin. In production, set `DEFAULT_ADMIN_EMAILS` and the matching Supabase `default_admin_emails` system setting to the real Google email that should bootstrap as admin.
 - The snapshot endpoint is `POST /api/cron/snapshots` with `Authorization: Bearer <CRON_SECRET>`.
 - Tournament imports preview safely in demo mode. With Supabase credentials, commit writes tournaments, events, new students, performances, participation points, medals, and audit entries.
 - `SCIOLY_ELO_ENDPOINT` is optional. Without it, the app uses a local fallback Elo map and defaults unknown schools to 1000.

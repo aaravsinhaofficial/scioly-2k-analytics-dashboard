@@ -142,9 +142,9 @@ export const mockStudents: Student[] = [
   },
   {
     id: "stu-aarav",
-    name: "Aarav Shah",
+    name: "Aarav Sinha",
     email: "aarav@example.com",
-    role: "viewer",
+    role: "admin",
     grade: 10,
     ovrRating: 85.1,
     studyRating: 90,

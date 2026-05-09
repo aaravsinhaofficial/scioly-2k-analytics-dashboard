@@ -29,6 +29,24 @@ function numberOrUndefined(value: number | string | null | undefined) {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+const builtInDefaultAdminEmails = ["aarav@example.com", "aaravsinhaofficial@gmail.com"];
+
+function defaultAdminEmails() {
+  return new Set(
+    [
+      ...builtInDefaultAdminEmails,
+      ...(process.env.DEFAULT_ADMIN_EMAILS ?? process.env.NEXT_PUBLIC_DEFAULT_ADMIN_EMAIL ?? "")
+        .split(",")
+        .map((email) => email.trim().toLowerCase())
+        .filter(Boolean)
+    ].map((email) => email.toLowerCase())
+  );
+}
+
+function defaultRoleForEmail(email: string): UserRole {
+  return defaultAdminEmails().has(email.toLowerCase()) ? "admin" : "viewer";
+}
+
 export function studentFromRow(row: StudentRow): Student {
   return {
     id: row.id,
@@ -103,7 +121,22 @@ export async function ensureStudentProfile(input: {
   grade?: number | null;
 }) {
   const existing = await fetchStudentByAuthUser(input.authUserId, input.email);
-  if (existing) return existing;
+  const defaultRole = defaultRoleForEmail(input.email);
+  if (existing) {
+    if (defaultRole === "admin" && existing.role !== "admin") {
+      const admin = getSupabaseAdmin();
+      if (admin) {
+        const { data } = await admin
+          .from("students")
+          .update({ role: "admin" })
+          .eq("id", existing.id)
+          .select("*")
+          .single();
+        if (data) return studentFromRow(data as StudentRow);
+      }
+    }
+    return existing;
+  }
 
   const admin = getSupabaseAdmin();
   if (!admin) {
@@ -111,7 +144,8 @@ export async function ensureStudentProfile(input: {
       id: input.authUserId,
       email: input.email,
       name: input.name,
-      grade: input.grade
+      grade: input.grade,
+      role: defaultRole
     });
   }
 
@@ -123,7 +157,7 @@ export async function ensureStudentProfile(input: {
         email: input.email,
         name: input.name?.trim() || input.email.split("@")[0],
         grade: input.grade ?? null,
-        role: "viewer",
+        role: defaultRole,
         ovr_rating: 60,
         total_points: 0,
         prev_ovr: 60
@@ -138,7 +172,8 @@ export async function ensureStudentProfile(input: {
       id: input.authUserId,
       email: input.email,
       name: input.name,
-      grade: input.grade
+      grade: input.grade,
+      role: defaultRole
     });
   }
 

@@ -205,7 +205,7 @@ export function getPlayerDetail(id: string) {
 }
 
 export function getCurrentDemoUser() {
-  return mockStudents.find((student) => student.id === "stu-samanyu")!;
+  return mockStudents.find((student) => student.id === "stu-aarav")!;
 }
 
 export function getApprovalQueue() {

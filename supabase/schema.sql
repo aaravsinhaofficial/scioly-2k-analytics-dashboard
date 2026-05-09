@@ -193,6 +193,10 @@ insert into public.system_settings (key, value)
 values ('daily_point_log_limit', '10'::jsonb)
 on conflict (key) do nothing;
 
+insert into public.system_settings (key, value)
+values ('default_admin_emails', '["aarav@example.com", "aaravsinhaofficial@gmail.com"]'::jsonb)
+on conflict (key) do nothing;
+
 insert into public.custom_point_categories (name, default_points, max_points)
 values
   ('Competition Participation', 10, 100),
@@ -220,6 +224,7 @@ as $$
 declare
   profile_name text;
   profile_grade integer;
+  profile_role text;
 begin
   profile_name := coalesce(
     nullif(new.raw_user_meta_data ->> 'name', ''),
@@ -232,6 +237,18 @@ begin
     when coalesce(new.raw_user_meta_data ->> 'grade', '') ~ '^\d+$'
       then (new.raw_user_meta_data ->> 'grade')::integer
     else null
+  end;
+
+  profile_role := case
+    when exists (
+      select 1
+      from public.system_settings s,
+           jsonb_array_elements_text(s.value) as email(value)
+      where s.key = 'default_admin_emails'
+        and lower(email.value) = lower(new.email)
+    )
+      then 'admin'
+    else 'viewer'
   end;
 
   insert into public.students (
@@ -249,7 +266,7 @@ begin
     new.id,
     profile_name,
     new.email,
-    'viewer',
+    profile_role,
     profile_grade,
     coalesce(new.raw_user_meta_data ->> 'avatar_url', new.raw_user_meta_data ->> 'picture'),
     60.00,
@@ -260,6 +277,10 @@ begin
   set auth_user_id = coalesce(public.students.auth_user_id, excluded.auth_user_id),
       name = coalesce(nullif(public.students.name, ''), excluded.name),
       grade = coalesce(public.students.grade, excluded.grade),
+      role = case
+        when excluded.role = 'admin' then 'admin'
+        else public.students.role
+      end,
       profile_picture_url = coalesce(public.students.profile_picture_url, excluded.profile_picture_url);
 
   return new;
