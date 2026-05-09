@@ -9,16 +9,16 @@ export default async function UploadPage() {
     <AppShell currentUser={currentUser}>
       <div className="space-y-6">
         <section className="rounded-md border border-court-line bg-court-panel p-5 md:p-6">
-          <div className="text-xs font-black uppercase text-cyan-300">AI Import</div>
+          <div className="text-xs font-black uppercase text-cyan-300">Duosmium Import</div>
           <h1 className="mt-2 text-4xl font-black italic uppercase leading-none text-white md:text-5xl">
             Tournament Upload
           </h1>
           <p className="mt-3 max-w-3xl text-zinc-400">
-            Paste Duosmium results, copied spreadsheet text, or official result text. The parser extracts schools,
-            events, ranks, teams, SOS, and placement scores.
+            Upload a Duosmium CSV or, for admins, paste a manual tournament dump. Rows update only the students listed
+            as participants for that specific event and tournament.
           </p>
         </section>
-        <TournamentUpload />
+        <TournamentUpload currentUser={currentUser} />
       </div>
     </AppShell>
   );

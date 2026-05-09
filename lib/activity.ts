@@ -6,14 +6,16 @@ export const activityLabels: Record<ActivityType, string> = {
   solo_practice_test: "Solo Practice Test",
   partner_practice_test: "Partner Practice Test",
   build_testing: "Build Testing",
-  id_specimens: "ID Specimens"
+  id_specimens: "ID Specimens",
+  custom_activity: "Custom Activity"
 };
 
 export const activityLimits = {
   maxStudyMinutes: 240,
   maxSpecimenCount: 300,
   maxCustomBuildPoints: 200,
-  maxPointsPerLog: 200
+  maxPointsPerLog: 200,
+  maxCustomActivityPoints: 500
 };
 
 export const activityHelp: Record<ActivityType, string> = {
@@ -22,7 +24,8 @@ export const activityHelp: Record<ActivityType, string> = {
   solo_practice_test: "100 points flat",
   partner_practice_test: "150 points flat",
   build_testing: `custom session points, capped at ${activityLimits.maxCustomBuildPoints} pts`,
-  id_specimens: `quantity x 0.5, capped at ${activityLimits.maxPointsPerLog} pts`
+  id_specimens: `quantity x 0.5, capped at ${activityLimits.maxPointsPerLog} pts`,
+  custom_activity: `admin-defined category, capped at ${activityLimits.maxCustomActivityPoints} pts`
 };
 
 function clamp(value: number, min: number, max: number) {
@@ -38,7 +41,7 @@ export function calculateActivityPoints(input: {
 }) {
   const minutes = clamp(Number(input.minutes ?? 0), 0, activityLimits.maxStudyMinutes);
   const quantity = clamp(Number(input.quantity ?? 0), 0, activityLimits.maxSpecimenCount);
-  const customPoints = clamp(Number(input.customPoints ?? 0), 0, activityLimits.maxCustomBuildPoints);
+  const customPoints = clamp(Number(input.customPoints ?? 0), 0, activityLimits.maxCustomActivityPoints);
 
   switch (input.activityType) {
     case "solo_study":
@@ -50,9 +53,11 @@ export function calculateActivityPoints(input: {
     case "partner_practice_test":
       return 150;
     case "build_testing":
-      return Math.min(activityLimits.maxPointsPerLog, Math.round(customPoints));
+      return Math.min(activityLimits.maxCustomBuildPoints, Math.round(customPoints));
     case "id_specimens":
       return Math.min(activityLimits.maxPointsPerLog, Math.round(quantity * 0.5));
+    case "custom_activity":
+      return Math.min(activityLimits.maxCustomActivityPoints, Math.round(customPoints));
     default:
       return 0;
   }

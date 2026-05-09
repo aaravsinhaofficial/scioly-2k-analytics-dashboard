@@ -14,7 +14,9 @@ interface StudentRow {
   ovr_rating: number | string;
   study_rating?: number | null;
   build_rating?: number | null;
+  potential_rating?: number | string | null;
   total_points: number;
+  profile_events?: string[] | null;
   prev_ovr?: number | string | null;
   prev_avg_placement?: number | string | null;
   last_snapshot_date?: string | null;
@@ -38,7 +40,9 @@ export function studentFromRow(row: StudentRow): Student {
     ovrRating: Number(row.ovr_rating),
     studyRating: row.study_rating ?? undefined,
     buildRating: row.build_rating ?? undefined,
+    potentialRating: numberOrUndefined(row.potential_rating),
     totalPoints: row.total_points ?? 0,
+    profileEvents: row.profile_events ?? [],
     prevOvr: Number(row.prev_ovr ?? row.ovr_rating ?? 60),
     prevAvgPlacement: numberOrUndefined(row.prev_avg_placement),
     lastSnapshotDate: row.last_snapshot_date ?? undefined,
@@ -63,6 +67,7 @@ export function baselineStudent(input: {
     studyRating: undefined,
     buildRating: undefined,
     totalPoints: 0,
+    profileEvents: [],
     prevOvr: 60,
     prevAvgPlacement: undefined,
     createdAt: new Date().toISOString()

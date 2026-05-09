@@ -1,9 +1,11 @@
+import { AccountManager } from "@/components/admin/AccountManager";
+import { CustomCategoryManager } from "@/components/admin/CustomCategoryManager";
 import { RosterManager } from "@/components/admin/RosterManager";
 import { AppShell } from "@/components/layout/AppShell";
 import { getManagePageData } from "@/lib/data";
 
 export default async function ManagePage() {
-  const { currentUser, rosters } = await getManagePageData();
+  const { currentUser, rosters, students } = await getManagePageData();
 
   return (
     <AppShell currentUser={currentUser}>
@@ -19,6 +21,8 @@ export default async function ManagePage() {
           </p>
         </section>
         <RosterManager rosters={rosters} />
+        <CustomCategoryManager />
+        <AccountManager students={students} />
       </div>
     </AppShell>
   );

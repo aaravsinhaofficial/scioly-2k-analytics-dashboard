@@ -20,7 +20,10 @@ export function PlayerTrendChart({ snapshots }: PlayerTrendChartProps) {
   const data = snapshots.map((snapshot) => ({
     date: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(snapshot.recordedAt)),
     ovr: snapshot.ovrValue,
-    points: snapshot.totalPoints
+    potential: snapshot.potentialRating ?? snapshot.ovrValue,
+    points: snapshot.totalPoints,
+    avgPlacement: snapshot.avgPlacement,
+    medals: snapshot.medalCount ?? 0
   }));
 
   if (data.length === 0) {
@@ -38,7 +41,8 @@ export function PlayerTrendChart({ snapshots }: PlayerTrendChartProps) {
           <CartesianGrid stroke="#27272a" strokeDasharray="3 3" />
           <XAxis dataKey="date" stroke="#a1a1aa" tick={{ fontSize: 12 }} />
           <YAxis yAxisId="points" stroke="#06B6D4" tick={{ fontSize: 12 }} width={42} />
-          <YAxis yAxisId="ovr" orientation="right" domain={[60, 99]} stroke="#ffffff" tick={{ fontSize: 12 }} width={34} />
+          <YAxis yAxisId="rating" orientation="right" domain={[60, 99]} stroke="#ffffff" tick={{ fontSize: 12 }} width={34} />
+          <YAxis yAxisId="count" hide domain={[0, "dataMax + 3"]} />
           <Tooltip
             contentStyle={{
               background: "#111111",
@@ -60,7 +64,7 @@ export function PlayerTrendChart({ snapshots }: PlayerTrendChartProps) {
             activeDot={{ r: 5 }}
           />
           <Line
-            yAxisId="ovr"
+            yAxisId="rating"
             type="monotone"
             dataKey="ovr"
             name="OVR"
@@ -68,6 +72,34 @@ export function PlayerTrendChart({ snapshots }: PlayerTrendChartProps) {
             strokeWidth={3}
             dot={{ r: 3 }}
             activeDot={{ r: 5 }}
+          />
+          <Line
+            yAxisId="rating"
+            type="monotone"
+            dataKey="potential"
+            name="Potential"
+            stroke="#EC4899"
+            strokeWidth={2}
+            strokeDasharray="5 4"
+            dot={{ r: 3 }}
+          />
+          <Line
+            yAxisId="count"
+            type="monotone"
+            dataKey="avgPlacement"
+            name="Avg Placement"
+            stroke="#A855F7"
+            strokeWidth={2}
+            dot={{ r: 3 }}
+          />
+          <Line
+            yAxisId="count"
+            type="stepAfter"
+            dataKey="medals"
+            name="Medals"
+            stroke="#FBBF24"
+            strokeWidth={2}
+            dot={{ r: 3 }}
           />
         </LineChart>
       </ResponsiveContainer>

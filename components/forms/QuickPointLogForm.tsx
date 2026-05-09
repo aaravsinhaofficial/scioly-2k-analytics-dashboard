@@ -17,6 +17,7 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
   const [minutes, setMinutes] = useState(60);
   const [quantity, setQuantity] = useState(50);
   const [customPoints, setCustomPoints] = useState(75);
+  const [customLabel, setCustomLabel] = useState("Custom Practice");
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -37,7 +38,8 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
             activityType,
             minutes,
             quantity,
-            customPoints
+            customPoints,
+            customLabel: activityType === "custom_activity" ? customLabel : undefined
           })
         });
 
@@ -110,7 +112,18 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
           </label>
         ) : null}
 
-        {activityType === "build_testing" ? (
+        {activityType === "custom_activity" ? (
+          <label className="grid gap-2 text-xs font-black uppercase text-zinc-500">
+            Category Name
+            <input
+              value={customLabel}
+              onChange={(event) => setCustomLabel(event.target.value)}
+              className="h-11 rounded-md border border-court-line bg-court-elevated px-3 text-sm font-bold normal-case text-white outline-none transition focus:border-cyan-400"
+            />
+          </label>
+        ) : null}
+
+        {activityType === "build_testing" || activityType === "custom_activity" ? (
           <label className="grid gap-2 text-xs font-black uppercase text-zinc-500">
             Custom Points
             <input

@@ -101,7 +101,8 @@ export async function getManagePageData() {
   return {
     currentUser,
     rosters: getRosterSeedForDragDrop(),
-    teams: getTeamComparisons()
+    teams: getTeamComparisons(),
+    students: getLeaderboardPlayers()
   };
 }
 

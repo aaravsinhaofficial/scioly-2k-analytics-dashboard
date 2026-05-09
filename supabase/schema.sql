@@ -14,7 +14,9 @@ create table if not exists public.students (
   ovr_rating numeric(5, 2) not null default 60.00,
   study_rating integer,
   build_rating integer,
+  potential_rating numeric(5, 2),
   total_points integer not null default 0,
+  profile_events text[] not null default '{}'::text[],
   prev_ovr numeric(5, 2) not null default 60.00,
   prev_avg_placement numeric(6, 2),
   last_snapshot_date timestamptz,
@@ -23,6 +25,8 @@ create table if not exists public.students (
 
 alter table public.students
 add column if not exists auth_user_id uuid unique references auth.users(id) on delete set null;
+alter table public.students add column if not exists potential_rating numeric(5, 2);
+alter table public.students add column if not exists profile_events text[] not null default '{}'::text[];
 
 create table if not exists public.teams (
   id uuid primary key default gen_random_uuid(),
@@ -58,9 +62,16 @@ create table if not exists public.tournaments (
   benchmark_source text not null default 'equivalent' check (benchmark_source in ('direct', 'equivalent')),
   relative_difficulty_multiplier numeric(6, 2) not null default 1.00,
   attending_schools jsonb not null default '[]'::jsonb,
+  medal_cutoff integer not null default 6,
+  participation_points integer not null default 10,
+  source_type text not null default 'duosmium_csv' check (source_type in ('duosmium_csv', 'manual', 'demo')),
   created_at timestamptz not null default now(),
   unique (name, date)
 );
+
+alter table public.tournaments add column if not exists medal_cutoff integer not null default 6;
+alter table public.tournaments add column if not exists participation_points integer not null default 10;
+alter table public.tournaments add column if not exists source_type text not null default 'duosmium_csv';
 
 create table if not exists public.performances (
   id serial primary key,
@@ -69,10 +80,23 @@ create table if not exists public.performances (
   event_id integer not null references public.events(id) on delete restrict,
   rank integer not null check (rank > 0),
   placement_score numeric(8, 2) not null,
+  participant_names text[] not null default '{}'::text[],
+  is_medal boolean not null default false,
+  medal_cutoff integer not null default 6,
+  participation_points integer not null default 10,
+  medal_points integer not null default 0,
+  event_points integer not null default 0,
   team_designation text not null default 'A',
   created_at timestamptz not null default now(),
   unique (student_id, tournament_id, event_id)
 );
+
+alter table public.performances add column if not exists participant_names text[] not null default '{}'::text[];
+alter table public.performances add column if not exists is_medal boolean not null default false;
+alter table public.performances add column if not exists medal_cutoff integer not null default 6;
+alter table public.performances add column if not exists participation_points integer not null default 10;
+alter table public.performances add column if not exists medal_points integer not null default 0;
+alter table public.performances add column if not exists event_points integer not null default 0;
 
 create table if not exists public.grind_points (
   id serial primary key,
@@ -81,6 +105,9 @@ create table if not exists public.grind_points (
   points integer not null check (points > 0),
   minutes integer not null default 0,
   quantity integer,
+  custom_label text,
+  custom_category_id integer,
+  metadata jsonb not null default '{}'::jsonb,
   is_approved boolean not null default false,
   status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
   submitted_at timestamptz not null default now(),
@@ -89,14 +116,43 @@ create table if not exists public.grind_points (
   notes text
 );
 
+create table if not exists public.custom_point_categories (
+  id serial primary key,
+  name text not null unique,
+  default_points integer not null default 0,
+  max_points integer not null default 500,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+alter table public.grind_points add column if not exists custom_label text;
+alter table public.grind_points add column if not exists custom_category_id integer references public.custom_point_categories(id);
+alter table public.grind_points add column if not exists metadata jsonb not null default '{}'::jsonb;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'grind_points_custom_category_id_fkey'
+  ) then
+    alter table public.grind_points
+    add constraint grind_points_custom_category_id_fkey
+    foreign key (custom_category_id) references public.custom_point_categories(id);
+  end if;
+end $$;
+
 create table if not exists public.ovr_snapshots (
   id serial primary key,
   student_id uuid not null references public.students(id) on delete cascade,
   ovr_value numeric(5, 2) not null,
   total_points integer not null,
   avg_placement numeric(6, 2),
+  medal_count integer not null default 0,
+  potential_rating numeric(5, 2),
   recorded_at timestamptz not null default now()
 );
+
+alter table public.ovr_snapshots add column if not exists medal_count integer not null default 0;
+alter table public.ovr_snapshots add column if not exists potential_rating numeric(5, 2);
 
 create table if not exists public.audit_logs (
   id serial primary key,
@@ -105,8 +161,27 @@ create table if not exists public.audit_logs (
   target text not null,
   reason text,
   ip_address inet,
+  entity_table text,
+  entity_id text,
+  payload_before jsonb,
+  payload_after jsonb,
+  undo_action text,
+  is_reversible boolean not null default false,
+  reversed_at timestamptz,
+  reversed_by uuid references public.students(id),
+  reversal_of integer references public.audit_logs(id),
   created_at timestamptz not null default now()
 );
+
+alter table public.audit_logs add column if not exists entity_table text;
+alter table public.audit_logs add column if not exists entity_id text;
+alter table public.audit_logs add column if not exists payload_before jsonb;
+alter table public.audit_logs add column if not exists payload_after jsonb;
+alter table public.audit_logs add column if not exists undo_action text;
+alter table public.audit_logs add column if not exists is_reversible boolean not null default false;
+alter table public.audit_logs add column if not exists reversed_at timestamptz;
+alter table public.audit_logs add column if not exists reversed_by uuid references public.students(id);
+alter table public.audit_logs add column if not exists reversal_of integer references public.audit_logs(id);
 
 create table if not exists public.system_settings (
   key text primary key,
@@ -117,6 +192,12 @@ create table if not exists public.system_settings (
 insert into public.system_settings (key, value)
 values ('daily_point_log_limit', '10'::jsonb)
 on conflict (key) do nothing;
+
+insert into public.custom_point_categories (name, default_points, max_points)
+values
+  ('Competition Participation', 10, 100),
+  ('Other Practice', 50, 500)
+on conflict (name) do nothing;
 
 create or replace function public.current_student_id()
 returns uuid
@@ -159,6 +240,7 @@ begin
     email,
     role,
     grade,
+    profile_picture_url,
     ovr_rating,
     total_points,
     prev_ovr
@@ -169,6 +251,7 @@ begin
     new.email,
     'viewer',
     profile_grade,
+    coalesce(new.raw_user_meta_data ->> 'avatar_url', new.raw_user_meta_data ->> 'picture'),
     60.00,
     0,
     60.00
@@ -176,7 +259,8 @@ begin
   on conflict (email) do update
   set auth_user_id = coalesce(public.students.auth_user_id, excluded.auth_user_id),
       name = coalesce(nullif(public.students.name, ''), excluded.name),
-      grade = coalesce(public.students.grade, excluded.grade);
+      grade = coalesce(public.students.grade, excluded.grade),
+      profile_picture_url = coalesce(public.students.profile_picture_url, excluded.profile_picture_url);
 
   return new;
 end;
@@ -221,17 +305,29 @@ security definer
 set search_path = public
 as $$
 declare
+  grind_total integer;
+  performance_total integer;
   approved_points integer;
   study numeric;
   build numeric;
   new_ovr numeric;
+  medal_count integer;
+  avg_place numeric;
+  potential numeric;
 begin
   select coalesce(sum(points), 0)
-  into approved_points
+  into grind_total
   from public.grind_points
   where student_id = target_student_id
     and is_approved = true
     and status = 'approved';
+
+  select coalesce(sum(event_points), 0)
+  into performance_total
+  from public.performances
+  where student_id = target_student_id;
+
+  approved_points := grind_total + performance_total;
 
   select greatest(60, least(99, 55 + avg(p.placement_score) / 4 + least(4, count(*) * 0.45)))
   into study
@@ -257,11 +353,42 @@ begin
     new_ovr := 60 + approved_points * 0.01;
   end if;
 
+  select count(*)
+  into medal_count
+  from public.performances
+  where student_id = target_student_id
+    and is_medal = true;
+
+  select round(avg(rank), 2)
+  into avg_place
+  from public.performances
+  where student_id = target_student_id;
+
+  select greatest(
+    greatest(coalesce(study, 60), coalesce(build, 60), greatest(60, least(99, new_ovr))),
+    least(
+      99,
+      greatest(60, least(99, new_ovr))
+        + least(5, (
+          select coalesce(sum(points), 0) / 120.0
+          from public.grind_points
+          where student_id = target_student_id
+            and is_approved = true
+            and status = 'approved'
+            and submitted_at > now() - interval '30 days'
+        ))
+        + least(4, coalesce(medal_count, 0) * 0.8)
+        + coalesce(greatest(0, (10 - avg_place) * 0.55), 0)
+    )
+  )
+  into potential;
+
   update public.students
   set
     study_rating = case when study is null then null else round(study)::integer end,
     build_rating = case when build is null then null else round(build)::integer end,
     total_points = approved_points,
+    potential_rating = round(greatest(60, least(99, potential)), 2),
     ovr_rating = greatest(60, least(99, round(new_ovr, 2)))
   where id = target_student_id;
 end;
@@ -276,7 +403,6 @@ as $$
 declare
   member_sum numeric;
   member_count integer;
-  filler_count integer;
 begin
   select coalesce(sum(ovr_rating), 0), count(*)
   into member_sum, member_count
@@ -289,10 +415,11 @@ begin
     limit 15
   ) top_members;
 
-  filler_count := greatest(0, 15 - member_count);
-
   update public.teams
-  set team_ovr = round((member_sum + filler_count * 60) / 15, 2),
+  set team_ovr = case
+        when member_count = 0 then 60.00
+        else round(member_sum / member_count, 2)
+      end,
       version = version + 1
   where id = target_team_id;
 end;
@@ -398,7 +525,7 @@ as $$
 declare
   inserted_count integer;
 begin
-  insert into public.ovr_snapshots (student_id, ovr_value, total_points, avg_placement, recorded_at)
+  insert into public.ovr_snapshots (student_id, ovr_value, total_points, avg_placement, medal_count, potential_rating, recorded_at)
   select
     s.id,
     s.ovr_rating,
@@ -408,6 +535,13 @@ begin
       from public.performances p
       where p.student_id = s.id
     ),
+    (
+      select count(*)
+      from public.performances p
+      where p.student_id = s.id
+        and p.is_medal = true
+    ),
+    s.potential_rating,
     now()
   from public.students s;
 
@@ -461,6 +595,7 @@ alter table public.grind_points enable row level security;
 alter table public.ovr_snapshots enable row level security;
 alter table public.audit_logs enable row level security;
 alter table public.system_settings enable row level security;
+alter table public.custom_point_categories enable row level security;
 
 create policy "students_select_logged_in"
 on public.students for select
@@ -570,6 +705,17 @@ with check (public.is_officer_or_admin());
 
 create policy "settings_admin_all"
 on public.system_settings for all
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+create policy "custom_point_categories_select_logged_in"
+on public.custom_point_categories for select
+to authenticated
+using (true);
+
+create policy "custom_point_categories_admin_all"
+on public.custom_point_categories for all
 to authenticated
 using (public.is_admin())
 with check (public.is_admin());

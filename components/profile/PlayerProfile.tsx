@@ -42,6 +42,15 @@ export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileP
                 <OvrBadge value={player.ovrRating} showTier />
                 <DeltaIndicator delta={player.ovrDelta} metric="ovr" />
               </div>
+              {player.profileEvents && player.profileEvents.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {player.profileEvents.map((event) => (
+                    <span key={event} className="rounded border border-court-line bg-court-elevated px-2 py-1 text-[11px] font-black uppercase text-zinc-300">
+                      {event}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -70,7 +79,7 @@ export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileP
       </div>
 
       <div className="space-y-6 p-5 md:p-8">
-        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <StatTile
             label="Overall Rating"
             value={<OvrBadge value={player.ovrRating} size="sm" showTier />}
@@ -91,6 +100,8 @@ export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileP
             value={typeof player.avgPlacement === "number" ? player.avgPlacement.toFixed(1) : "N/A"}
             detail={<DeltaIndicator delta={player.avgPlacementDelta} metric="placement" />}
           />
+          <StatTile label="Potential" value={player.potentialRating.toFixed(1)} detail="Projected ceiling from medals, activity, and category ratings" />
+          <StatTile label="Medals" value={player.medalCount} detail="Detected from Duosmium medal fields or tournament cutoff" />
           <StatTile label="Study Rating" value={player.studyRating ?? "N/A"} />
           <StatTile label="Build Rating" value={player.buildRating ?? "N/A"} />
           <StatTile
@@ -134,6 +145,10 @@ export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileP
                       <div className="font-black text-white">{event.avgPlacement.toFixed(1)}</div>
                     </div>
                     <div>
+                      <div className="text-[11px] font-black uppercase text-zinc-500">Medals</div>
+                      <div className="font-black text-amber-200">{event.medals}</div>
+                    </div>
+                    <div>
                       <div className="text-[11px] font-black uppercase text-zinc-500">Event OVR</div>
                       <div className="font-black text-cyan-300">{event.eventOvr}</div>
                     </div>
@@ -174,16 +189,18 @@ export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileP
 
           {tab === "competitions" ? (
             <div className="overflow-x-auto rounded-md border border-court-line">
-              <table className="w-full min-w-[900px] border-collapse bg-court-panel text-left text-sm">
+              <table className="w-full min-w-[1060px] border-collapse bg-court-panel text-left text-sm">
                 <thead className="bg-court-elevated text-[11px] font-black uppercase text-zinc-500">
                   <tr>
                     <th className="px-4 py-3">Date</th>
                     <th className="px-4 py-3">Tournament</th>
                     <th className="px-4 py-3">Event</th>
+                    <th className="px-4 py-3">Participants</th>
                     <th className="px-4 py-3">Rank</th>
+                    <th className="px-4 py-3">Medal</th>
                     <th className="px-4 py-3">SOS</th>
                     <th className="px-4 py-3">Benchmark</th>
-                    <th className="px-4 py-3">Score</th>
+                    <th className="px-4 py-3">Points</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -192,7 +209,9 @@ export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileP
                       <td className="px-4 py-3 text-zinc-400">{formatDate(row.date)}</td>
                       <td className="px-4 py-3 font-bold text-white">{row.tournament}</td>
                       <td className="px-4 py-3 text-zinc-300">{row.event}</td>
+                      <td className="px-4 py-3 text-zinc-400">{row.participantNames.join(", ")}</td>
                       <td className="px-4 py-3 font-black text-white">#{row.rank}</td>
+                      <td className="px-4 py-3 font-black">{row.isMedal ? <span className="text-amber-200">Yes</span> : <span className="text-zinc-500">No</span>}</td>
                       <td className={cn("px-4 py-3 font-black", row.sos >= 1.5 ? "text-emerald-300" : "text-red-300")}>
                         {row.sos.toFixed(2)}x
                       </td>
@@ -202,7 +221,10 @@ export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileP
                           {row.benchmarkSource} · {row.relativeDifficultyMultiplier.toFixed(2)}x
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-cyan-300">{row.placementScore.toFixed(1)}</td>
+                      <td className="px-4 py-3">
+                        <div className="font-black text-cyan-300">{row.eventPoints}</div>
+                        <div className="text-[11px] text-zinc-500">score {row.placementScore.toFixed(1)}</div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

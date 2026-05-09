@@ -9,7 +9,7 @@ import type {
   Team,
   TeamMember
 } from "@/lib/types";
-import { calculatePlacementScore, resolveBenchmarkComparison } from "@/lib/rating";
+import { calculateEventPoints, calculateMedalPoints, calculatePlacementScore, resolveBenchmarkComparison } from "@/lib/rating";
 
 export const schoolName = process.env.NEXT_PUBLIC_SCHOOL_NAME || "Obra D Tompkins High School";
 
@@ -56,7 +56,10 @@ export const mockTournaments = [
     avgSciolyElo: 1830,
     sosMultiplier: 1.83,
     benchmarkComparison: resolveBenchmarkComparison(mitSchools, 1830, 1.83),
-    attendingSchools: mitSchools
+    attendingSchools: mitSchools,
+    medalCutoff: 6,
+    participationPoints: 10,
+    sourceType: "demo" as const
   },
   {
     id: 2,
@@ -65,7 +68,10 @@ export const mockTournaments = [
     avgSciolyElo: 1460,
     sosMultiplier: 1.46,
     benchmarkComparison: resolveBenchmarkComparison(utSchools, 1460, 1.46),
-    attendingSchools: utSchools
+    attendingSchools: utSchools,
+    medalCutoff: 6,
+    participationPoints: 10,
+    sourceType: "demo" as const
   },
   {
     id: 3,
@@ -74,7 +80,10 @@ export const mockTournaments = [
     avgSciolyElo: 1120,
     sosMultiplier: 1.12,
     benchmarkComparison: resolveBenchmarkComparison(regionalSchools, 1120, 1.12),
-    attendingSchools: regionalSchools
+    attendingSchools: regionalSchools,
+    medalCutoff: 3,
+    participationPoints: 12,
+    sourceType: "demo" as const
   },
   {
     id: 4,
@@ -83,7 +92,10 @@ export const mockTournaments = [
     avgSciolyElo: 1670,
     sosMultiplier: 1.67,
     benchmarkComparison: resolveBenchmarkComparison(stateSchools, 1670, 1.67),
-    attendingSchools: stateSchools
+    attendingSchools: stateSchools,
+    medalCutoff: 6,
+    participationPoints: 15,
+    sourceType: "demo" as const
   }
 ];
 
@@ -103,7 +115,9 @@ export const mockStudents: Student[] = [
     ovrRating: 91.4,
     studyRating: 94,
     buildRating: 87,
+    potentialRating: 96.2,
     totalPoints: 1480,
+    profileEvents: ["Anatomy & Physiology", "Codebusters", "Tower"],
     prevOvr: 89.8,
     prevAvgPlacement: 4.2,
     lastSnapshotDate: "2026-05-03T05:00:00.000Z",
@@ -118,7 +132,9 @@ export const mockStudents: Student[] = [
     ovrRating: 88.6,
     studyRating: 91,
     buildRating: 84,
+    potentialRating: 93.4,
     totalPoints: 1225,
+    profileEvents: ["Disease Detectives", "Chemistry Lab", "Experimental Design"],
     prevOvr: 87.2,
     prevAvgPlacement: 5.4,
     lastSnapshotDate: "2026-05-03T05:00:00.000Z",
@@ -133,7 +149,9 @@ export const mockStudents: Student[] = [
     ovrRating: 85.1,
     studyRating: 90,
     buildRating: undefined,
+    potentialRating: 90.8,
     totalPoints: 1040,
+    profileEvents: ["Astronomy", "Disease Detectives"],
     prevOvr: 83.7,
     prevAvgPlacement: 6.1,
     lastSnapshotDate: "2026-05-03T05:00:00.000Z",
@@ -148,7 +166,9 @@ export const mockStudents: Student[] = [
     ovrRating: 83.9,
     studyRating: 82,
     buildRating: 90,
+    potentialRating: 91.5,
     totalPoints: 1010,
+    profileEvents: ["Tower", "Wind Power"],
     prevOvr: 82.4,
     prevAvgPlacement: 5.9,
     lastSnapshotDate: "2026-05-03T05:00:00.000Z",
@@ -163,7 +183,9 @@ export const mockStudents: Student[] = [
     ovrRating: 81.7,
     studyRating: 86,
     buildRating: 79,
+    potentialRating: 86.7,
     totalPoints: 920,
+    profileEvents: ["Fossils", "Experimental Design"],
     prevOvr: 80.9,
     prevAvgPlacement: 7.2,
     lastSnapshotDate: "2026-05-03T05:00:00.000Z",
@@ -178,7 +200,9 @@ export const mockStudents: Student[] = [
     ovrRating: 79.5,
     studyRating: 84,
     buildRating: undefined,
+    potentialRating: 84.6,
     totalPoints: 740,
+    profileEvents: ["Anatomy & Physiology", "Disease Detectives"],
     prevOvr: 78.8,
     prevAvgPlacement: 8.1,
     lastSnapshotDate: "2026-05-03T05:00:00.000Z",
@@ -193,7 +217,9 @@ export const mockStudents: Student[] = [
     ovrRating: 77.9,
     studyRating: undefined,
     buildRating: 88,
+    potentialRating: 85.9,
     totalPoints: 640,
+    profileEvents: ["Robot Tour"],
     prevOvr: 76.1,
     prevAvgPlacement: 8.9,
     lastSnapshotDate: "2026-05-03T05:00:00.000Z",
@@ -208,7 +234,9 @@ export const mockStudents: Student[] = [
     ovrRating: 76.6,
     studyRating: 80,
     buildRating: 76,
+    potentialRating: 82.1,
     totalPoints: 690,
+    profileEvents: ["Chemistry Lab", "Wind Power"],
     prevOvr: 76.9,
     prevAvgPlacement: 9.3,
     lastSnapshotDate: "2026-05-03T05:00:00.000Z",
@@ -223,7 +251,9 @@ export const mockStudents: Student[] = [
     ovrRating: 74.8,
     studyRating: 78,
     buildRating: undefined,
+    potentialRating: 80.2,
     totalPoints: 520,
+    profileEvents: ["Codebusters"],
     prevOvr: 73.4,
     prevAvgPlacement: 10.5,
     lastSnapshotDate: "2026-05-03T05:00:00.000Z",
@@ -238,7 +268,9 @@ export const mockStudents: Student[] = [
     ovrRating: 72.2,
     studyRating: undefined,
     buildRating: undefined,
+    potentialRating: 78.1,
     totalPoints: 1220,
+    profileEvents: [],
     prevOvr: 71.1,
     prevAvgPlacement: undefined,
     lastSnapshotDate: "2026-05-03T05:00:00.000Z",
@@ -253,7 +285,9 @@ export const mockStudents: Student[] = [
     ovrRating: 71.8,
     studyRating: 72,
     buildRating: 71,
+    potentialRating: 75.4,
     totalPoints: 360,
+    profileEvents: ["Fossils", "Experimental Design"],
     prevOvr: 72.5,
     prevAvgPlacement: 11.1,
     lastSnapshotDate: "2026-05-03T05:00:00.000Z",
@@ -268,7 +302,9 @@ export const mockStudents: Student[] = [
     ovrRating: 68.9,
     studyRating: undefined,
     buildRating: undefined,
+    potentialRating: 74.2,
     totalPoints: 890,
+    profileEvents: [],
     prevOvr: 68.3,
     prevAvgPlacement: undefined,
     lastSnapshotDate: "2026-05-03T05:00:00.000Z",
@@ -301,6 +337,13 @@ function perf(
 ): Performance {
   const tournament = mockTournaments.find((entry) => entry.id === tournamentId)!;
   const event = mockEvents.find((entry) => entry.id === eventId)!;
+  const student = mockStudents.find((entry) => entry.id === studentId)!;
+  const placementScore = calculatePlacementScore(
+    rank,
+    tournament.sosMultiplier,
+    tournament.benchmarkComparison.relativeDifficultyMultiplier
+  );
+  const medalPoints = calculateMedalPoints(rank, tournament.medalCutoff);
   return {
     id: performanceId++,
     studentId,
@@ -308,11 +351,18 @@ function perf(
     eventId,
     eventCategory: event.category,
     rank,
-    placementScore: calculatePlacementScore(
+    placementScore,
+    participantNames: [student.name],
+    isMedal: rank <= tournament.medalCutoff,
+    medalCutoff: tournament.medalCutoff,
+    participationPoints: tournament.participationPoints,
+    medalPoints,
+    eventPoints: calculateEventPoints({
+      placementScore,
       rank,
-      tournament.sosMultiplier,
-      tournament.benchmarkComparison.relativeDifficultyMultiplier
-    ),
+      medalCutoff: tournament.medalCutoff,
+      participationPoints: tournament.participationPoints
+    }),
     teamDesignation,
     createdAt: `${tournament.date}T18:00:00.000Z`
   };
@@ -473,6 +523,8 @@ function snapshotSeries(
     ovrValue: ovrValues[index],
     totalPoints: pointValues[index],
     avgPlacement: placementValues[index],
+    medalCount: Math.max(0, Math.round((ovrValues[index] - 74) / 7)),
+    potentialRating: Math.min(99, Math.round((ovrValues[index] + 4.8) * 10) / 10),
     recordedAt: `${date}T05:00:00.000Z`
   }));
 }
@@ -501,6 +553,11 @@ export const mockAuditLogs: AuditLogEntry[] = [
     target: "Maya Iyer -> officer",
     reason: "Competition captain access",
     ipAddress: "127.0.0.1",
+    entityTable: "students",
+    entityId: "stu-maya",
+    undoAction: "student.update",
+    isReversible: true,
+    isReversed: false,
     createdAt: "2026-04-14T15:02:00.000Z"
   },
   {
@@ -510,6 +567,11 @@ export const mockAuditLogs: AuditLogEntry[] = [
     action: "points.approve",
     target: "Samanyu Pochanapeddi +90",
     ipAddress: "127.0.0.1",
+    entityTable: "grind_points",
+    entityId: "2",
+    undoAction: "points.unapprove",
+    isReversible: true,
+    isReversed: false,
     createdAt: "2026-05-03T14:30:00.000Z"
   },
   {
@@ -520,6 +582,11 @@ export const mockAuditLogs: AuditLogEntry[] = [
     target: "Claire Park +35",
     reason: "Duplicate submission",
     ipAddress: "127.0.0.1",
+    entityTable: "grind_points",
+    entityId: "7",
+    undoAction: "points.restore_pending",
+    isReversible: true,
+    isReversed: false,
     createdAt: "2026-05-06T14:05:00.000Z"
   },
   {
@@ -530,6 +597,11 @@ export const mockAuditLogs: AuditLogEntry[] = [
     target: "Texas State Tournament",
     reason: "Duosmium import preview committed",
     ipAddress: "127.0.0.1",
+    entityTable: "tournaments",
+    entityId: "4",
+    undoAction: "tournament.delete",
+    isReversible: true,
+    isReversed: false,
     createdAt: "2026-04-19T23:15:00.000Z"
   }
 ];

@@ -16,7 +16,10 @@ export async function GET() {
     player.totalPoints,
     player.thirtyDayPoints,
     player.avgPlacement ?? "N/A",
-    player.tournamentsAttended
+    player.tournamentsAttended,
+    player.medalCount,
+    player.potentialRating,
+    player.profileEvents?.join("; ") ?? ""
   ]);
 
   const csv = [
@@ -31,7 +34,10 @@ export async function GET() {
       "Total Points",
       "30D Points",
       "Avg Placement",
-      "Tournaments"
+      "Tournaments",
+      "Medals",
+      "Potential",
+      "Events"
     ],
     ...rows
   ]

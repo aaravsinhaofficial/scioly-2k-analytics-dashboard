@@ -134,6 +134,21 @@ export function calculatePlacementScore(rank: number, sosMultiplier: number, rel
   return Math.max(0, roundRating((100 - rank) * sosMultiplier * relativeDifficultyMultiplier));
 }
 
+export function calculateMedalPoints(rank: number, medalCutoff: number) {
+  if (medalCutoff <= 0 || rank > medalCutoff) return 0;
+  const placeBonus = Math.max(0, medalCutoff - rank + 1);
+  return 12 + placeBonus * 3;
+}
+
+export function calculateEventPoints(input: {
+  placementScore: number;
+  rank: number;
+  medalCutoff: number;
+  participationPoints: number;
+}) {
+  return Math.round(input.participationPoints + input.placementScore * 0.18 + calculateMedalPoints(input.rank, input.medalCutoff));
+}
+
 export function calculateCategoryRating(performances: Performance[], category: EventCategory) {
   const matching = performances.filter((performance) => performance.eventCategory === category);
   if (matching.length === 0) return undefined;
@@ -170,6 +185,21 @@ export function calculateOverallRating(input: {
 export function calculateAveragePlacement(performances: Pick<Performance, "rank">[]) {
   if (performances.length === 0) return undefined;
   return roundRating(performances.reduce((total, performance) => total + performance.rank, 0) / performances.length);
+}
+
+export function calculatePotentialRating(input: {
+  ovrRating: number;
+  studyRating?: number;
+  buildRating?: number;
+  thirtyDayPoints: number;
+  medalCount: number;
+  avgPlacement?: number;
+}) {
+  const categoryCeiling = Math.max(input.studyRating ?? 60, input.buildRating ?? 60);
+  const activityLift = Math.min(5, input.thirtyDayPoints / 120);
+  const medalLift = Math.min(4, input.medalCount * 0.8);
+  const placementLift = typeof input.avgPlacement === "number" ? Math.max(0, (10 - input.avgPlacement) * 0.55) : 0;
+  return clampOvr(Math.max(input.ovrRating, categoryCeiling) + activityLift + medalLift + placementLift);
 }
 
 export function deltaValue(current: number, previous?: number, lowerIsBetter = false): DeltaValue {

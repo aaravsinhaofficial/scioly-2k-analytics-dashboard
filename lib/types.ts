@@ -10,7 +10,10 @@ export type ActivityType =
   | "solo_practice_test"
   | "partner_practice_test"
   | "build_testing"
-  | "id_specimens";
+  | "id_specimens"
+  | "custom_activity";
+
+export type TournamentSourceType = "duosmium_csv" | "manual" | "demo";
 
 export interface Student {
   id: string;
@@ -22,7 +25,9 @@ export interface Student {
   ovrRating: number;
   studyRating?: number;
   buildRating?: number;
+  potentialRating?: number;
   totalPoints: number;
+  profileEvents?: string[];
   prevOvr: number;
   prevAvgPlacement?: number;
   lastSnapshotDate?: string;
@@ -72,6 +77,9 @@ export interface Tournament {
   sosMultiplier: number;
   benchmarkComparison: BenchmarkComparison;
   attendingSchools: SchoolElo[];
+  medalCutoff: number;
+  participationPoints: number;
+  sourceType: TournamentSourceType;
 }
 
 export interface Performance {
@@ -82,8 +90,22 @@ export interface Performance {
   eventCategory?: EventCategory;
   rank: number;
   placementScore: number;
+  participantNames: string[];
+  isMedal: boolean;
+  medalCutoff: number;
+  participationPoints: number;
+  medalPoints: number;
+  eventPoints: number;
   teamDesignation: string;
   createdAt: string;
+}
+
+export interface CustomPointCategory {
+  id: number;
+  name: string;
+  defaultPoints: number;
+  maxPoints: number;
+  isActive: boolean;
 }
 
 export interface GrindPointLog {
@@ -93,11 +115,14 @@ export interface GrindPointLog {
   points: number;
   minutes: number;
   quantity?: number;
+  customLabel?: string;
+  customCategoryId?: number;
   status: PointLogStatus;
   submittedAt: string;
   approvedAt?: string;
   approvedBy?: string;
   notes?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface OvrSnapshot {
@@ -106,6 +131,8 @@ export interface OvrSnapshot {
   ovrValue: number;
   totalPoints: number;
   avgPlacement?: number;
+  medalCount?: number;
+  potentialRating?: number;
   recordedAt: string;
 }
 
@@ -117,6 +144,16 @@ export interface AuditLogEntry {
   target: string;
   reason?: string;
   ipAddress: string;
+  entityTable?: string;
+  entityId?: string;
+  payloadBefore?: Record<string, unknown>;
+  payloadAfter?: Record<string, unknown>;
+  undoAction?: string;
+  isReversible?: boolean;
+  isReversed?: boolean;
+  reversedAt?: string;
+  reversedBy?: string;
+  reversalOf?: number;
   createdAt: string;
 }
 
@@ -147,6 +184,11 @@ export interface CompetitionHistoryRow {
   benchmarkSource: BenchmarkComparison["source"];
   relativeDifficultyMultiplier: number;
   placementScore: number;
+  participantNames: string[];
+  isMedal: boolean;
+  participationPoints: number;
+  medalPoints: number;
+  eventPoints: number;
 }
 
 export interface PointHistoryRow {
@@ -167,6 +209,8 @@ export interface EventBreakdown {
   avgPlacement: number;
   eventOvr: number;
   bestFinish: number;
+  medals: number;
+  participationPoints: number;
 }
 
 export interface PlayerDetail extends Student {
@@ -176,6 +220,8 @@ export interface PlayerDetail extends Student {
   teamDesignation: string;
   avgPlacement?: number;
   tournamentsAttended: number;
+  medalCount: number;
+  potentialRating: number;
   thirtyDayPoints: number;
   ovrDelta: DeltaValue;
   avgPlacementDelta?: DeltaValue;
@@ -198,20 +244,30 @@ export interface TeamComparison {
 }
 
 export interface TournamentImportPerformance {
-  studentName: string;
+  studentName?: string;
+  studentNames: string[];
   eventName: string;
   category: EventCategory;
   rank: number;
+  schoolName: string;
+  isMedal: boolean;
+  medalCutoff: number;
+  participationPoints: number;
+  medalPoints: number;
+  eventPoints: number;
   teamDesignation: string;
 }
 
 export interface TournamentImportPreview {
   tournamentName: string;
   date: string;
+  sourceType: TournamentSourceType;
   attendingSchools: SchoolElo[];
   sosMultiplier: number;
   avgSciolyElo: number;
   benchmarkComparison: BenchmarkComparison;
+  medalCutoff: number;
+  participationPoints: number;
   performances: TournamentImportPerformance[];
   warnings: string[];
   missingFields: string[];

@@ -1,4 +1,4 @@
-import { calculateSos, resolveBenchmarkComparison } from "@/lib/rating";
+import { calculateEventPoints, calculateMedalPoints, calculatePlacementScore, calculateSos, resolveBenchmarkComparison } from "@/lib/rating";
 import type { EventCategory, SchoolElo, TournamentImportPerformance, TournamentImportPreview } from "@/lib/types";
 import { normalizeName } from "@/lib/utils";
 
@@ -46,13 +46,45 @@ function resolveSchool(schoolName: string): SchoolElo {
   };
 }
 
-export function buildStaticTournamentPreview(rawInput: string): TournamentImportPreview {
+function splitStudentNames(value: string) {
+  return value
+    .replace(/\s+\+\s+/g, ";")
+    .replace(/\s+&\s+/g, ";")
+    .replace(/\s+and\s+/gi, ";")
+    .split(/[;|/]/)
+    .flatMap((part) => part.split(/\s*,\s*/))
+    .map((name) => name.trim().replace(/^"+|"+$/g, ""))
+    .filter((name) => name.length > 1);
+}
+
+function parseCsv(rawInput: string) {
+  const rows = rawInput
+    .split(/\r?\n/)
+    .map((line) => line.split(",").map((value) => value.trim()))
+    .filter((row) => row.some(Boolean));
+  if (rows.length < 2) return [];
+  const headers = rows[0].map((value) => normalizeName(value).replace(/\s+/g, ""));
+  return rows.slice(1).map((row) => {
+    const record: Record<string, string> = {};
+    headers.forEach((header, index) => {
+      record[header] = row[index] ?? "";
+    });
+    return record;
+  });
+}
+
+export function buildStaticTournamentPreview(
+  rawInput: string,
+  options: { mode?: "duosmium_csv" | "manual"; tournamentName?: string; date?: string; medalCutoff?: number; participationPoints?: number } = {}
+): TournamentImportPreview {
   const lines = rawInput
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
-  const warnings = ["Static GitHub Pages mode uses the local parser; OpenAI and Supabase require a server deployment."];
-  const date = rawInput.match(/\b(20\d{2}-\d{2}-\d{2})\b/)?.[1] ?? new Date().toISOString().slice(0, 10);
+  const warnings = ["Static GitHub Pages mode parses locally; committing imports requires the Vercel/Supabase backend."];
+  const medalCutoff = Math.max(0, Math.round(options.medalCutoff ?? 6));
+  const participationPoints = Math.max(0, Math.round(options.participationPoints ?? 10));
+  const date = options.date || rawInput.match(/\b(20\d{2}-\d{2}-\d{2})\b/)?.[1] || new Date().toISOString().slice(0, 10);
   const schoolLine = lines.find((line) => /^schools?:/i.test(line));
   const schoolNames = schoolLine
     ? schoolLine
@@ -69,19 +101,61 @@ export function buildStaticTournamentPreview(rawInput: string): TournamentImport
       : Math.round(attendingSchools.reduce((total, school) => total + school.elo, 0) / attendingSchools.length);
   const benchmarkComparison = resolveBenchmarkComparison(attendingSchools, avgSciolyElo, sosMultiplier);
   const tournamentName =
-    lines.find((line) => !/^schools?:/i.test(line) && !/\b20\d{2}-\d{2}-\d{2}\b/.test(line) && !line.includes(":")) ??
+    options.tournamentName ||
+    lines.find((line) => !/^schools?:/i.test(line) && !/\b20\d{2}-\d{2}-\d{2}\b/.test(line) && !line.includes(":")) ||
     "Imported Tournament";
   const performances: TournamentImportPerformance[] = [];
+  const csvRows = parseCsv(rawInput);
+
+  if (csvRows.length > 0 && options.mode !== "manual") {
+    for (const row of csvRows) {
+      const eventName = row.event || row.eventname || row.eventtitle;
+      const rank = Number((row.rank || row.place || row.placement || "").match(/\d+/)?.[0]);
+      const studentNames = splitStudentNames(row.students || row.student || row.participants || row.names || row.members || "");
+      if (!eventName || !Number.isFinite(rank) || studentNames.length === 0) continue;
+      const placementScore = calculatePlacementScore(rank, sosMultiplier, benchmarkComparison.relativeDifficultyMultiplier);
+      const isMedal = /^(yes|true|1|medal|awarded)$/i.test(row.medal || row.award || "") || rank <= medalCutoff;
+      const eventMedalCutoff = isMedal ? medalCutoff : 0;
+      const medalPoints = isMedal ? calculateMedalPoints(rank, medalCutoff) : 0;
+      performances.push({
+        studentName: studentNames.join(", "),
+        studentNames,
+        eventName: eventName.trim(),
+        category: resolveEventCategory(eventName),
+        rank,
+        schoolName: row.school || row.schoolname || staticSchoolName,
+        isMedal,
+        medalCutoff,
+        participationPoints,
+        medalPoints,
+        eventPoints: calculateEventPoints({ placementScore, rank, medalCutoff: eventMedalCutoff, participationPoints }),
+        teamDesignation: (row.team || row.teamdesignation || "A").slice(0, 1).toUpperCase()
+      });
+    }
+  }
 
   for (const line of lines) {
     const match = line.match(/^(.+?):\s+(.+?)\s+([ABC])?\s*#?(\d{1,2})$/i);
     if (!match) continue;
-    const [, eventName, studentName, teamDesignation = "A", rank] = match;
+    const [, eventName, studentField, teamDesignation = "A", rank] = match;
+    const studentNames = splitStudentNames(studentField);
+    const rankNumber = Number(rank);
+    const placementScore = calculatePlacementScore(rankNumber, sosMultiplier, benchmarkComparison.relativeDifficultyMultiplier);
+    const isMedal = rankNumber <= medalCutoff;
+    const eventMedalCutoff = isMedal ? medalCutoff : 0;
+    const medalPoints = isMedal ? calculateMedalPoints(rankNumber, medalCutoff) : 0;
     performances.push({
-      studentName: studentName.trim(),
+      studentName: studentNames.join(", "),
+      studentNames,
       eventName: eventName.trim(),
       category: resolveEventCategory(eventName),
-      rank: Number(rank),
+      rank: rankNumber,
+      schoolName: staticSchoolName,
+      isMedal,
+      medalCutoff,
+      participationPoints,
+      medalPoints,
+      eventPoints: calculateEventPoints({ placementScore, rank: rankNumber, medalCutoff: eventMedalCutoff, participationPoints }),
       teamDesignation: teamDesignation.toUpperCase()
     });
   }
@@ -92,10 +166,13 @@ export function buildStaticTournamentPreview(rawInput: string): TournamentImport
   return {
     tournamentName,
     date,
+    sourceType: options.mode ?? "duosmium_csv",
     attendingSchools,
     sosMultiplier,
     avgSciolyElo,
     benchmarkComparison,
+    medalCutoff,
+    participationPoints,
     performances,
     warnings,
     missingFields

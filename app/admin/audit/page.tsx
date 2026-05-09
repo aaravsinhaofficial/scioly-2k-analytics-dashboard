@@ -14,10 +14,11 @@ export default async function AuditPage() {
             Audit Trail
           </h1>
           <p className="mt-3 max-w-3xl text-zinc-400">
-            Every elevated action is designed to be timestamped, IP logged, and reviewable by admins.
+            Every elevated action is timestamped and reviewable. Admin undo reverses the action while preserving both
+            the original log and the reversal.
           </p>
         </section>
-        <AuditLogTable logs={logs} />
+        <AuditLogTable logs={logs} currentUser={currentUser} />
       </div>
     </AppShell>
   );

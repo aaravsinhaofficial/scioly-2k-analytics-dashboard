@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
-import { ArrowRight, Loader2, LockKeyhole, Mail, UserPlus } from "lucide-react";
+import { ArrowRight, Chrome, Loader2, LockKeyhole, Mail, UserPlus } from "lucide-react";
 import { validatePassword } from "@/lib/password";
 
 type AuthMode = "login" | "signup" | "reset-request" | "reset-update";
@@ -111,6 +111,32 @@ export function AuthCard({ mode }: AuthCardProps) {
     });
   }
 
+  function continueWithGoogle() {
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const response = await fetch("/api/auth/google", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ next: searchParams.get("next") ?? "/dashboard" })
+        });
+        const payload = (await response.json()) as { ok: boolean; redirectTo?: string; error?: string };
+        if (!response.ok || !payload.ok || !payload.redirectTo) {
+          throw new Error(payload.error ?? "Could not start Google sign-in.");
+        }
+        window.location.href = payload.redirectTo;
+      } catch (caught) {
+        const message = caught instanceof Error ? caught.message : "Could not start Google sign-in.";
+        setError(
+          message.includes("Supabase")
+            ? "Google accounts require the Vercel/Supabase deployment. GitHub Pages is a read-only demo."
+            : message
+        );
+      }
+    });
+  }
+
   return (
     <div className="mx-auto flex min-h-screen max-w-6xl items-center justify-center px-4 py-10">
       <div className="grid w-full overflow-hidden rounded-md border border-court-line bg-court-panel shadow-panel lg:grid-cols-[1fr_440px]">
@@ -211,6 +237,18 @@ export function AuthCard({ mode }: AuthCardProps) {
               {isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ArrowRight className="h-4 w-4" aria-hidden="true" />}
               {copy.action}
             </button>
+
+            {(mode === "login" || mode === "signup") ? (
+              <button
+                type="button"
+                onClick={continueWithGoogle}
+                disabled={isPending}
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border border-court-line px-4 text-sm font-black uppercase text-zinc-200 transition hover:border-cyan-400 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Chrome className="h-4 w-4" aria-hidden="true" />}
+                Continue With Google
+              </button>
+            ) : null}
 
             {message ? <div className="rounded-md border border-emerald-300/40 bg-emerald-300/10 p-3 text-sm text-emerald-100">{message}</div> : null}
             {error ? <div className="rounded-md border border-red-300/40 bg-red-300/10 p-3 text-sm text-red-100">{error}</div> : null}

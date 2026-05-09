@@ -13,6 +13,8 @@ export async function POST(request: Request) {
     minutes?: number;
     quantity?: number;
     customPoints?: number;
+    customLabel?: string;
+    customCategoryId?: number;
   };
 
   if (!body.studentId || !body.activityType) {
@@ -47,6 +49,9 @@ export async function POST(request: Request) {
       points,
       minutes: body.minutes ?? 0,
       quantity: body.quantity ?? null,
+      custom_label: body.activityType === "custom_activity" ? body.customLabel?.trim() || "Custom Activity" : null,
+      custom_category_id: body.customCategoryId ?? null,
+      metadata: body.activityType === "custom_activity" ? { requestedLabel: body.customLabel ?? null } : {},
       is_approved: false
     });
 

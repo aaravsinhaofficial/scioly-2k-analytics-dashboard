@@ -13,6 +13,7 @@ import {
 import { activityLabels } from "@/lib/activity";
 import {
   calculateAveragePlacement,
+  calculatePotentialRating,
   deltaValue,
   getRatingTier,
   roundRating
@@ -77,7 +78,12 @@ function competitionHistory(performances: Performance[]): CompetitionHistoryRow[
         benchmarkSchool: tournament.benchmarkComparison.benchmarkSchool,
         benchmarkSource: tournament.benchmarkComparison.source,
         relativeDifficultyMultiplier: tournament.benchmarkComparison.relativeDifficultyMultiplier,
-        placementScore: performance.placementScore
+        placementScore: performance.placementScore,
+        participantNames: performance.participantNames,
+        isMedal: performance.isMedal,
+        participationPoints: performance.participationPoints,
+        medalPoints: performance.medalPoints,
+        eventPoints: performance.eventPoints
       };
     })
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -88,7 +94,7 @@ function pointHistory(logs: GrindPointLog[]): PointHistoryRow[] {
     .map((log) => ({
       id: log.id,
       date: log.submittedAt,
-      activity: activityLabels[log.activityType],
+      activity: log.customLabel || activityLabels[log.activityType],
       points: log.points,
       status: log.status,
       approvedBy: log.approvedBy ? studentById.get(log.approvedBy)?.name : undefined,
@@ -118,7 +124,9 @@ function eventBreakdowns(performances: Performance[]): EventBreakdown[] {
         timesCompeted: rows.length,
         avgPlacement,
         eventOvr: Math.min(99, Math.max(60, roundRating(55 + averageScore / 4 + rows.length * 0.4))),
-        bestFinish: Math.min(...rows.map((row) => row.rank))
+        bestFinish: Math.min(...rows.map((row) => row.rank)),
+        medals: rows.filter((row) => row.isMedal).length,
+        participationPoints: rows.reduce((total, row) => total + row.participationPoints, 0)
       };
     })
     .sort((a, b) => b.eventOvr - a.eventOvr);
@@ -143,6 +151,18 @@ export function detailForStudent(student: Student, rank = 1): PlayerDetail {
   const team = getTeamForStudent(student.id);
   const avgPlacement = calculateAveragePlacement(performances);
   const tournamentsAttended = new Set(performances.map((performance) => performance.tournamentId)).size;
+  const medalCount = performances.filter((performance) => performance.isMedal).length;
+  const activePoints = thirtyDayPoints(approvedLogs);
+  const potentialRating =
+    student.potentialRating ??
+    calculatePotentialRating({
+      ovrRating: student.ovrRating,
+      studyRating: student.studyRating,
+      buildRating: student.buildRating,
+      thirtyDayPoints: activePoints,
+      medalCount,
+      avgPlacement
+    });
 
   return {
     ...student,
@@ -150,7 +170,9 @@ export function detailForStudent(student: Student, rank = 1): PlayerDetail {
     ...team,
     avgPlacement,
     tournamentsAttended,
-    thirtyDayPoints: thirtyDayPoints(approvedLogs),
+    medalCount,
+    potentialRating,
+    thirtyDayPoints: activePoints,
     ovrDelta: deltaValue(student.ovrRating, snapshot?.ovrValue ?? student.prevOvr),
     avgPlacementDelta:
       typeof avgPlacement === "number"
@@ -160,7 +182,11 @@ export function detailForStudent(student: Student, rank = 1): PlayerDetail {
     competitionHistory: competitionHistory(performances),
     pointHistory: pointHistory(allLogs),
     eventBreakdowns: eventBreakdowns(performances),
-    snapshots
+    snapshots: snapshots.map((entry) => ({
+      ...entry,
+      medalCount: entry.medalCount ?? medalCount,
+      potentialRating: entry.potentialRating ?? potentialRating
+    }))
   };
 }
 
@@ -197,9 +223,9 @@ export function getApprovalQueue() {
 
 export function calculateTeamOvr(members: PlayerDetail[]) {
   const topMembers = [...members].sort((a, b) => b.ovrRating - a.ovrRating).slice(0, 15);
-  const fillerCount = Math.max(0, 15 - topMembers.length);
-  const total = topMembers.reduce((sum, member) => sum + member.ovrRating, 0) + fillerCount * 60;
-  return roundRating(total / 15);
+  if (topMembers.length === 0) return 60;
+  const total = topMembers.reduce((sum, member) => sum + member.ovrRating, 0);
+  return roundRating(total / topMembers.length);
 }
 
 export function getTeamComparisons(): TeamComparison[] {
