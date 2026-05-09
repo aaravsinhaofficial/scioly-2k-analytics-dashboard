@@ -5,6 +5,7 @@ create extension if not exists "pgcrypto";
 
 create table if not exists public.students (
   id uuid primary key default gen_random_uuid(),
+  auth_user_id uuid unique references auth.users(id) on delete set null,
   name text not null,
   email text unique not null,
   role text not null default 'viewer' check (role in ('viewer', 'officer', 'admin')),
@@ -19,6 +20,9 @@ create table if not exists public.students (
   last_snapshot_date timestamptz,
   created_at timestamptz not null default now()
 );
+
+alter table public.students
+add column if not exists auth_user_id uuid unique references auth.users(id) on delete set null;
 
 create table if not exists public.teams (
   id uuid primary key default gen_random_uuid(),
@@ -121,9 +125,67 @@ stable
 as $$
   select id
   from public.students
-  where email = auth.jwt() ->> 'email'
+  where auth_user_id = auth.uid()
+     or email = auth.jwt() ->> 'email'
   limit 1
 $$;
+
+create or replace function public.handle_new_auth_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  profile_name text;
+  profile_grade integer;
+begin
+  profile_name := coalesce(
+    nullif(new.raw_user_meta_data ->> 'name', ''),
+    nullif(new.raw_user_meta_data ->> 'full_name', ''),
+    split_part(new.email, '@', 1),
+    'New Student'
+  );
+
+  profile_grade := case
+    when coalesce(new.raw_user_meta_data ->> 'grade', '') ~ '^\d+$'
+      then (new.raw_user_meta_data ->> 'grade')::integer
+    else null
+  end;
+
+  insert into public.students (
+    auth_user_id,
+    name,
+    email,
+    role,
+    grade,
+    ovr_rating,
+    total_points,
+    prev_ovr
+  )
+  values (
+    new.id,
+    profile_name,
+    new.email,
+    'viewer',
+    profile_grade,
+    60.00,
+    0,
+    60.00
+  )
+  on conflict (email) do update
+  set auth_user_id = coalesce(public.students.auth_user_id, excluded.auth_user_id),
+      name = coalesce(nullif(public.students.name, ''), excluded.name),
+      grade = coalesce(public.students.grade, excluded.grade);
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+after insert on auth.users
+for each row execute function public.handle_new_auth_user();
 
 create or replace function public.current_student_role()
 returns text

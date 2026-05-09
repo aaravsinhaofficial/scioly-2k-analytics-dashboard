@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build:pages": "NEXT_OUTPUT=export next build",
+    "build:pages": "node scripts/build-pages.mjs",
     "start": "next start",
     "typecheck": "tsc --noEmit"
   },

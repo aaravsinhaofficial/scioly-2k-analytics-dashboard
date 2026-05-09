@@ -1,8 +1,10 @@
 import { notFound, redirect } from "next/navigation";
+import { getAuthenticatedStudent } from "@/lib/auth";
 import {
   getApprovalQueue,
   getAuditTrail,
   getCurrentDemoUser,
+  detailForStudent,
   getLeaderboardPlayers,
   getMostActivePlayers,
   getPlayerDetail,
@@ -12,9 +14,18 @@ import {
 } from "@/lib/analytics";
 import { schoolName } from "@/lib/seed";
 import { roleMeets } from "@/lib/utils";
-import type { UserRole } from "@/lib/types";
+import type { PlayerDetail, Student, UserRole } from "@/lib/types";
 
 export async function getCurrentUser() {
+  const authenticatedStudent = await getAuthenticatedStudent();
+  if (authenticatedStudent) {
+    return authenticatedStudent;
+  }
+
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    redirect("/login");
+  }
+
   return getCurrentDemoUser();
 }
 
@@ -26,9 +37,23 @@ export async function requireRole(minimumRole: UserRole) {
   return user;
 }
 
+function includeCurrentUser(players: PlayerDetail[], currentUser: Student) {
+  if (players.some((player) => player.id === currentUser.id)) {
+    return players;
+  }
+
+  return [
+    ...players,
+    {
+      ...detailForStudent(currentUser, players.length + 1),
+      rank: players.length + 1
+    }
+  ];
+}
+
 export async function getDashboardData() {
   const currentUser = await getCurrentUser();
-  const players = getLeaderboardPlayers();
+  const players = includeCurrentUser(getLeaderboardPlayers(), currentUser);
 
   return {
     currentUser,
@@ -41,7 +66,9 @@ export async function getDashboardData() {
 
 export async function getProfileData(id: string) {
   const currentUser = await getCurrentUser();
-  const player = getPlayerDetail(id);
+  const player =
+    getPlayerDetail(id) ??
+    (id === currentUser.id ? detailForStudent(currentUser, getLeaderboardPlayers().length + 1) : undefined);
 
   if (!player) {
     notFound();

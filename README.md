@@ -63,8 +63,25 @@ SCIOLY_ELO_ENDPOINT=
 1. Create a Supabase project.
 2. Run `supabase/schema.sql` in the SQL editor.
 3. Enable email/password auth and email verification.
-4. Add the Supabase variables to `.env.local`.
-5. Deploy to Vercel and add the same environment variables there.
+4. In Supabase Auth URL settings, add your deployed Vercel URL and local dev URL:
+   - `http://localhost:3000`
+   - `https://YOUR-VERCEL-PROJECT.vercel.app`
+5. Add redirect URLs for auth callbacks:
+   - `http://localhost:3000/auth/callback`
+   - `https://YOUR-VERCEL-PROJECT.vercel.app/auth/callback`
+6. Add the Supabase variables to `.env.local`.
+7. Deploy to Vercel and add the same environment variables there.
+
+## Accounts And Roles
+
+- `/signup` creates a Supabase Auth user.
+- New users are inserted into `students` automatically by the `handle_new_auth_user` database trigger.
+- New accounts default to `viewer`, `60` OVR, and `0` points.
+- `/login` signs users in with email/password.
+- `/reset-password` sends reset emails and lets signed-in recovery sessions set a new password.
+- The app falls back to demo mode only when Supabase env vars are missing.
+
+To promote a user, update the `students.role` column in Supabase to `officer` or `admin`.
 
 ## Production Notes
 

@@ -134,7 +134,7 @@ function latestSnapshot(snapshots: OvrSnapshot[]) {
   return snapshots.at(-1);
 }
 
-function detailFor(student: Student, rank = 1): PlayerDetail {
+export function detailForStudent(student: Student, rank = 1): PlayerDetail {
   const performances = mockPerformances.filter((performance) => performance.studentId === student.id);
   const allLogs = mockPointLogs.filter((log) => log.studentId === student.id);
   const approvedLogs = approvedLogsFor(student.id);
@@ -166,7 +166,7 @@ function detailFor(student: Student, rank = 1): PlayerDetail {
 
 export function getLeaderboardPlayers() {
   return mockStudents
-    .map((student) => detailFor(student))
+    .map((student) => detailForStudent(student))
     .sort((a, b) => b.ovrRating - a.ovrRating)
     .map((student, index) => ({
       ...student,

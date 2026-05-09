@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { mockStudents } from "@/lib/seed";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
-export const dynamic = "force-static";
+export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   const secret = process.env.CRON_SECRET;

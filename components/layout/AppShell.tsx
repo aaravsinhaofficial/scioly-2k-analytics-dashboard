@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { BarChart3, ClipboardCheck, FileUp, History, LayoutDashboard, Shield, Users } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { BarChart3, ClipboardCheck, FileUp, History, LayoutDashboard, LogOut, Shield, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Student } from "@/lib/types";
 import { cn, roleMeets } from "@/lib/utils";
@@ -25,7 +25,17 @@ const navItems = [
 
 export function AppShell({ currentUser, schoolName = "Obra D Tompkins High School", children }: AppShellProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const visibleItems = navItems.filter((item) => roleMeets(currentUser.role, item.role));
+
+  async function signOut() {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      router.push("/login");
+      router.refresh();
+    }
+  }
 
   return (
     <div className="min-h-screen">
@@ -72,6 +82,15 @@ export function AppShell({ currentUser, schoolName = "Obra D Tompkins High Schoo
                 <div className="text-[11px] font-black uppercase text-cyan-300">{currentUser.role}</div>
               </div>
             </Link>
+            <button
+              type="button"
+              onClick={signOut}
+              className="grid h-11 w-11 place-items-center rounded-md border border-court-line bg-court-panel text-zinc-300 transition hover:border-red-400 hover:text-white"
+              aria-label="Sign out"
+              title="Sign out"
+            >
+              <LogOut className="h-4 w-4" aria-hidden="true" />
+            </button>
           </div>
         </div>
       </header>

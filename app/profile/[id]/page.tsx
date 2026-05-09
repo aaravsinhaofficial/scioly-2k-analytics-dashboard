@@ -3,8 +3,6 @@ import { PlayerProfile } from "@/components/profile/PlayerProfile";
 import { getProfileData } from "@/lib/data";
 import { mockStudents } from "@/lib/seed";
 
-export const dynamicParams = false;
-
 export function generateStaticParams() {
   return mockStudents.map((student) => ({
     id: student.id

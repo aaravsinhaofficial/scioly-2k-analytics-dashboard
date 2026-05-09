@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getLeaderboardPlayers } from "@/lib/analytics";
 import { csvEscape } from "@/lib/utils";
 
-export const dynamic = "force-static";
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   const rows = getLeaderboardPlayers().map((player) => [
