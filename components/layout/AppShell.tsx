@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart3, ClipboardCheck, FileUp, History, LayoutDashboard, LogOut, Shield, Users } from "lucide-react";
+import { BarChart3, BookOpen, ClipboardCheck, FileUp, History, LayoutDashboard, LogOut, Shield, Target, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Student } from "@/lib/types";
 import { cn, roleMeets } from "@/lib/utils";
@@ -17,6 +17,8 @@ interface AppShellProps {
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, role: "viewer" as const },
   { href: "/teams", label: "Teams", icon: Users, role: "viewer" as const },
+  { href: "/resources", label: "Resources", icon: BookOpen, role: "viewer" as const },
+  { href: "/practice", label: "Practice", icon: Target, role: "viewer" as const },
   { href: "/admin/approve", label: "Approve", icon: ClipboardCheck, role: "officer" as const },
   { href: "/admin/upload", label: "Upload", icon: FileUp, role: "officer" as const },
   { href: "/admin/manage", label: "Manage", icon: Shield, role: "admin" as const },
