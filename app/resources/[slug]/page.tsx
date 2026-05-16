@@ -10,9 +10,14 @@ export function generateStaticParams() {
   return sciolyEvents.map((event) => ({ slug: event.slug }));
 }
 
-export default async function ResourceEventPage({ params }: { params: { slug: string } }) {
+export default async function ResourceEventPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
   const currentUser = await getCurrentUser();
-  const event = getSciolyEvent(params.slug);
+  const event = getSciolyEvent(slug);
 
   if (!event) notFound();
 
