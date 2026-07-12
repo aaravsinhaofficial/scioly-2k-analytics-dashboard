@@ -163,7 +163,7 @@ function inferTeamDesignation(rowTeam: string, school: string) {
   if (explicit) return explicit.toUpperCase();
 
   const fromSchool = school.match(/\b([ABC])\s*(team)?$/i)?.[1];
-  return (fromSchool ?? "A").toUpperCase();
+  return (fromSchool ?? "").toUpperCase();
 }
 
 function firstMetadataValue(rows: CsvRow[], aliases: string[]) {
@@ -199,7 +199,7 @@ function parseDuosmiumCsv(rawInput: string, options: TournamentParseOptions): Pa
   for (const row of rows) {
     const eventName = pick(row.values, columnAliases.event);
     const rank = parseRank(pick(row.values, columnAliases.rank));
-    const school = pick(row.values, columnAliases.school) || schoolName;
+    const school = pick(row.values, columnAliases.school);
     const participantField = pick(row.values, columnAliases.participants);
     const studentNames = splitStudentNames(participantField);
     const medalColumn = pick(row.values, columnAliases.medal);
@@ -211,12 +211,12 @@ function parseDuosmiumCsv(rawInput: string, options: TournamentParseOptions): Pa
     if (medalColumn) sawMedalColumn = true;
 
     if (!eventName || !Number.isFinite(rank)) continue;
-    if (studentNames.length === 0) {
-      warnings.push(`Row ${row.index} (${eventName}) has no participant names, so no student will receive points for it.`);
-      continue;
-    }
+    if (studentNames.length === 0) warnings.push(`Row ${row.index} (${eventName}) needs participant matching.`);
 
     performances.push({
+      rowKey: `csv-${row.index}`,
+      sourceRow: row.index,
+      rawParticipantText: participantField,
       studentName: studentNames.join(", "),
       studentNames,
       eventName,
@@ -285,6 +285,8 @@ function parseManualDump(rawInput: string, options: TournamentParseOptions): Par
     const rank = Number(rankValue);
     if (studentNames.length === 0) continue;
     performances.push({
+      rowKey: `manual-${performances.length + 1}`,
+      rawParticipantText: studentField,
       studentName: studentNames.join(", "),
       studentNames,
       eventName: eventName.trim(),
@@ -360,6 +362,8 @@ export async function parseTournamentInput(
     performances,
     warnings,
     missingFields: parsed.missingFields
+    ,blockers: [],
+    canCommit: parsed.missingFields.length === 0
   };
 }
 

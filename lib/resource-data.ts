@@ -29,7 +29,7 @@ export interface SciolyEventHub {
   name: string;
   slug: string;
   category: "Study" | "Build" | "Lab" | "Hybrid";
-  resourceOvr: number;
+  coverageScore: number;
   readiness: "Loaded" | "Building" | "Needs Uploads";
   lead: string;
   tagline: string;
@@ -64,7 +64,7 @@ export const sciolyEvents: SciolyEventHub[] = [
     name: "Thermodynamics",
     slug: "thermodynamics",
     category: "Hybrid",
-    resourceOvr: 91,
+    coverageScore: 91,
     readiness: "Loaded",
     lead: "Event Lead TBD",
     tagline: "Heat transfer, calculations, and device optimization.",
@@ -137,7 +137,7 @@ export const sciolyEvents: SciolyEventHub[] = [
     name: "Designer Genes",
     slug: "designer-genes",
     category: "Study",
-    resourceOvr: 88,
+    coverageScore: 88,
     readiness: "Building",
     lead: "Event Lead TBD",
     tagline: "Genetics, inheritance, biotechnology, and application-heavy practice.",
@@ -209,7 +209,7 @@ export const sciolyEvents: SciolyEventHub[] = [
     name: "Fossils",
     slug: "fossils",
     category: "Study",
-    resourceOvr: 84,
+    coverageScore: 84,
     readiness: "Building",
     lead: "Event Lead TBD",
     tagline: "Identification, morphology, geologic time, and paleoecology.",
@@ -281,7 +281,7 @@ export const sciolyEvents: SciolyEventHub[] = [
     name: "Engineering CAD",
     slug: "engineering-cad",
     category: "Build",
-    resourceOvr: 79,
+    coverageScore: 79,
     readiness: "Needs Uploads",
     lead: "Event Lead TBD",
     tagline: "CAD speed, constraints, drawings, and engineering communication.",
@@ -353,7 +353,7 @@ export const sciolyEvents: SciolyEventHub[] = [
     name: "Experimental Design",
     slug: "experimental-design",
     category: "Lab",
-    resourceOvr: 82,
+    coverageScore: 82,
     readiness: "Building",
     lead: "Event Lead TBD",
     tagline: "Rubric discipline, controlled experiments, and fast scientific writing.",
@@ -424,8 +424,8 @@ export function getResourceStats() {
     resources: resources.length,
     questions: questions.length,
     tests: tests.length,
-    averageResourceOvr: Math.round(
-      sciolyEvents.reduce((total, event) => total + event.resourceOvr, 0) / sciolyEvents.length
+    averageCoverage: Math.round(
+      sciolyEvents.reduce((total, event) => total + event.coverageScore, 0) / sciolyEvents.length
     )
   };
 }

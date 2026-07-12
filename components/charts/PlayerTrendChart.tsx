@@ -19,8 +19,6 @@ interface PlayerTrendChartProps {
 export function PlayerTrendChart({ snapshots }: PlayerTrendChartProps) {
   const data = snapshots.map((snapshot) => ({
     date: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(snapshot.recordedAt)),
-    ovr: snapshot.ovrValue,
-    potential: snapshot.potentialRating ?? snapshot.ovrValue,
     points: snapshot.totalPoints,
     avgPlacement: snapshot.avgPlacement,
     medals: snapshot.medalCount ?? 0
@@ -38,51 +36,30 @@ export function PlayerTrendChart({ snapshots }: PlayerTrendChartProps) {
     <div className="h-72 rounded-md border border-court-line bg-court-panel p-3 shadow-sm">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 12, right: 8, bottom: 8, left: 0 }}>
-          <CartesianGrid stroke="#dce4de" strokeDasharray="3 3" />
-          <XAxis dataKey="date" stroke="#647168" tick={{ fontSize: 12 }} />
-          <YAxis yAxisId="points" stroke="#2f7d63" tick={{ fontSize: 12 }} width={42} />
-          <YAxis yAxisId="rating" orientation="right" domain={[60, 99]} stroke="#3566a8" tick={{ fontSize: 12 }} width={34} />
+          <CartesianGrid stroke="rgb(var(--color-line))" strokeDasharray="3 3" />
+          <XAxis dataKey="date" stroke="rgb(var(--color-zinc-500))" tick={{ fontSize: 12 }} />
+          <YAxis yAxisId="points" stroke="rgb(var(--color-accent))" tick={{ fontSize: 12 }} width={42} />
           <YAxis yAxisId="count" hide domain={[0, "dataMax + 3"]} />
           <Tooltip
             contentStyle={{
-              background: "#ffffff",
-              border: "1px solid #dce4de",
+              background: "rgb(var(--color-panel))",
+              border: "1px solid rgb(var(--color-line))",
               borderRadius: 10,
-              color: "#18231d",
-              boxShadow: "0 8px 24px rgba(20, 45, 35, 0.08)"
+              color: "rgb(var(--color-ink))",
+              boxShadow: "0 8px 24px rgb(var(--color-shadow) / 0.12)"
             }}
-            labelStyle={{ color: "#18231d", fontWeight: 600 }}
+            labelStyle={{ color: "rgb(var(--color-ink))", fontWeight: 600 }}
           />
           <Legend wrapperStyle={{ fontSize: 12, fontWeight: 500 }} />
           <Line
             yAxisId="points"
             type="monotone"
             dataKey="points"
-            name="Cumulative Points"
-            stroke="#2f7d63"
+            name="Historical combined points"
+            stroke="rgb(var(--color-accent))"
             strokeWidth={3}
             dot={{ r: 3 }}
             activeDot={{ r: 5 }}
-          />
-          <Line
-            yAxisId="rating"
-            type="monotone"
-            dataKey="ovr"
-            name="OVR"
-            stroke="#3566a8"
-            strokeWidth={3}
-            dot={{ r: 3 }}
-            activeDot={{ r: 5 }}
-          />
-          <Line
-            yAxisId="rating"
-            type="monotone"
-            dataKey="potential"
-            name="Potential"
-            stroke="#9a4d73"
-            strokeWidth={2}
-            strokeDasharray="5 4"
-            dot={{ r: 3 }}
           />
           <Line
             yAxisId="count"

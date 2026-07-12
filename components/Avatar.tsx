@@ -14,7 +14,7 @@ const sizes = {
   xl: "h-28 w-28 text-3xl"
 };
 
-export function Avatar({ name, src, size = "md", borderColor = "#dce4de" }: AvatarProps) {
+export function Avatar({ name, src, size = "md", borderColor = "rgb(var(--color-line))" }: AvatarProps) {
   if (src) {
     return (
       // eslint-disable-next-line @next/next/no-img-element

@@ -13,11 +13,10 @@ import {
 import { activityLabels } from "@/lib/activity";
 import {
   calculateAveragePlacement,
-  calculatePotentialRating,
   deltaValue,
-  getRatingTier,
   roundRating
 } from "@/lib/rating";
+import { calculateEventReadiness, calculateReadiness } from "@/lib/readiness";
 import type {
   AuditLogEntry,
   CompetitionHistoryRow,
@@ -45,6 +44,7 @@ export interface AnalyticsDataset {
   pointLogs: GrindPointLog[];
   snapshots: OvrSnapshot[];
   auditLogs: AuditLogEntry[];
+  testoffScores: Array<{ studentId: string; score: number; weight: number; seasonId: number; isActiveSeason: boolean }>;
   now?: Date;
 }
 
@@ -58,6 +58,7 @@ export const demoAnalyticsDataset: AnalyticsDataset = {
   pointLogs: mockPointLogs,
   snapshots: mockSnapshots,
   auditLogs: mockAuditLogs,
+  testoffScores: [],
   now: demoNow
 };
 
@@ -147,7 +148,10 @@ export function createAnalytics(dataset: AnalyticsDataset) {
         const event = eventById.get(eventId);
         if (!event) return [];
         const avgPlacement = calculateAveragePlacement(rows) ?? 0;
-        const averageScore = rows.reduce((total, row) => total + row.placementScore, 0) / rows.length;
+        const readinessPerformances = rows.flatMap((row) => {
+          const tournament = tournamentById.get(row.tournamentId);
+          return tournament ? [{ eventId: row.eventId, rank: row.rank, date: tournament.date }] : [];
+        });
 
         return [{
           eventId,
@@ -155,13 +159,13 @@ export function createAnalytics(dataset: AnalyticsDataset) {
           category: event.category,
           timesCompeted: rows.length,
           avgPlacement,
-          eventOvr: Math.min(99, Math.max(60, roundRating(55 + averageScore / 4 + rows.length * 0.4))),
+          eventReadiness: calculateEventReadiness(readinessPerformances),
           bestFinish: Math.min(...rows.map((row) => row.rank)),
           medals: rows.filter((row) => row.isMedal).length,
           participationPoints: rows.reduce((total, row) => total + row.participationPoints, 0)
         } satisfies EventBreakdown];
       })
-      .sort((a, b) => b.eventOvr - a.eventOvr);
+      .sort((a, b) => b.eventReadiness - a.eventReadiness);
   }
 
   function snapshotsFor(studentId: string) {
@@ -174,6 +178,11 @@ export function createAnalytics(dataset: AnalyticsDataset) {
     const performances = dataset.performances.filter((performance) => performance.studentId === student.id);
     const allLogs = dataset.pointLogs.filter((log) => log.studentId === student.id);
     const approvedLogs = approvedLogsFor(student.id);
+    const approvedPracticePoints = approvedLogs.reduce((total, log) => total + log.points, 0);
+    const pendingPracticePoints = allLogs
+      .filter((log) => log.status === "pending")
+      .reduce((total, log) => total + log.points, 0);
+    const competitionPoints = performances.reduce((total, performance) => total + performance.eventPoints, 0);
     const snapshots = snapshotsFor(student.id);
     const snapshot = snapshots.at(-1);
     const team = getTeamForStudent(student.id);
@@ -181,16 +190,16 @@ export function createAnalytics(dataset: AnalyticsDataset) {
     const tournamentsAttended = new Set(performances.map((performance) => performance.tournamentId)).size;
     const medalCount = performances.filter((performance) => performance.isMedal).length;
     const activePoints = thirtyDayPoints(approvedLogs);
-    const potentialRating =
-      student.potentialRating ??
-      calculatePotentialRating({
-        ovrRating: student.ovrRating,
-        studyRating: student.studyRating,
-        buildRating: student.buildRating,
-        thirtyDayPoints: activePoints,
-        medalCount,
-        avgPlacement
-      });
+    const readiness = calculateReadiness({
+      performances: performances.flatMap((performance) => {
+        const tournament = tournamentById.get(performance.tournamentId);
+        return tournament ? [{ eventId: performance.eventId, rank: performance.rank, date: tournament.date }] : [];
+      }),
+      thirtyDayPoints: activePoints,
+      testoffScores: dataset.testoffScores
+        .filter((score) => score.studentId === student.id && score.isActiveSeason)
+        .map((score) => ({ score: score.score, weight: score.weight }))
+    });
 
     return {
       ...student,
@@ -199,9 +208,12 @@ export function createAnalytics(dataset: AnalyticsDataset) {
       avgPlacement,
       tournamentsAttended,
       medalCount,
-      potentialRating,
+      ...readiness,
+      readinessResultCount: readiness.resultCount,
+      approvedPracticePoints,
+      pendingPracticePoints,
+      competitionPoints,
       thirtyDayPoints: activePoints,
-      ovrDelta: deltaValue(student.ovrRating, snapshot?.ovrValue ?? student.prevOvr),
       avgPlacementDelta:
         typeof avgPlacement === "number"
           ? deltaValue(avgPlacement, snapshot?.avgPlacement ?? student.prevAvgPlacement, true)
@@ -212,8 +224,7 @@ export function createAnalytics(dataset: AnalyticsDataset) {
       eventBreakdowns: eventBreakdowns(performances),
       snapshots: snapshots.map((entry) => ({
         ...entry,
-        medalCount: entry.medalCount ?? medalCount,
-        potentialRating: entry.potentialRating ?? potentialRating
+        medalCount: entry.medalCount ?? medalCount
       }))
     };
   }
@@ -221,7 +232,7 @@ export function createAnalytics(dataset: AnalyticsDataset) {
   function getLeaderboardPlayers() {
     return dataset.students
       .map((student) => detailForStudent(student))
-      .sort((a, b) => b.ovrRating - a.ovrRating || a.name.localeCompare(b.name))
+      .sort((a, b) => b.readinessScore - a.readinessScore || a.name.localeCompare(b.name))
       .map((student, index) => ({ ...student, rank: index + 1 }));
   }
 
@@ -241,10 +252,11 @@ export function createAnalytics(dataset: AnalyticsDataset) {
       .sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime());
   }
 
-  function calculateTeamOvr(members: PlayerDetail[]) {
-    const topMembers = [...members].sort((a, b) => b.ovrRating - a.ovrRating).slice(0, 15);
-    if (topMembers.length === 0) return 60;
-    return roundRating(topMembers.reduce((sum, member) => sum + member.ovrRating, 0) / topMembers.length);
+  function calculateTeamReadiness(members: PlayerDetail[]) {
+    const scoredMembers = members.filter((member) => member.readinessScore > 0);
+    const topMembers = [...scoredMembers].sort((a, b) => b.readinessScore - a.readinessScore).slice(0, 15);
+    if (topMembers.length === 0) return 0;
+    return roundRating(topMembers.reduce((sum, member) => sum + member.readinessScore, 0) / topMembers.length);
   }
 
   function getTeamComparisons(): TeamComparison[] {
@@ -268,7 +280,7 @@ export function createAnalytics(dataset: AnalyticsDataset) {
         id: team.id,
         schoolName: team.schoolName,
         designation: team.teamDesignation,
-        teamOvr: calculateTeamOvr(members),
+        teamReadiness: calculateTeamReadiness(members),
         members,
         topStudy: [...members]
           .filter((member) => typeof member.studyRating === "number")
@@ -291,12 +303,12 @@ export function createAnalytics(dataset: AnalyticsDataset) {
     const teamRosters = getTeamComparisons().map((team) => ({
       id: team.id,
       label: `${team.schoolName} ${team.designation}`,
-      ovr: team.teamOvr,
+      readiness: team.teamReadiness,
       members: team.members.map((member) => ({
         id: member.id,
         name: member.name,
-        ovr: member.ovrRating,
-        tier: getRatingTier(member.ovrRating).name
+        readiness: member.readinessScore,
+        status: member.readinessStatus
       }))
     }));
 
@@ -306,8 +318,8 @@ export function createAnalytics(dataset: AnalyticsDataset) {
       .map((student) => ({
         id: student.id,
         name: student.name,
-        ovr: student.ovrRating,
-        tier: getRatingTier(student.ovrRating).name
+        readiness: student.readinessScore,
+        status: student.readinessStatus
       }));
 
     return [
@@ -315,7 +327,7 @@ export function createAnalytics(dataset: AnalyticsDataset) {
       {
         id: "unassigned",
         label: "Unassigned",
-        ovr: 60,
+        readiness: 0,
         members: unassigned
       }
     ];

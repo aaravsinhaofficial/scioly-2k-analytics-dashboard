@@ -32,7 +32,7 @@ export function CustomCategoryManager() {
     <section className="rounded-md border border-court-line bg-court-panel p-5">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <h2 className="text-2xl font-black italic uppercase text-white">Custom Point Categories</h2>
+          <h2 className="text-xl font-semibold text-white">Custom point categories</h2>
           <p className="mt-1 text-sm text-zinc-400">Create reusable "other" categories for point logs.</p>
         </div>
         {message ? <div className="rounded-md border border-court-line bg-court-elevated p-3 text-sm text-zinc-300">{message}</div> : null}

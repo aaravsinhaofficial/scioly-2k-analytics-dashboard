@@ -10,9 +10,9 @@ interface TournamentUploadProps {
 }
 
 const sampleCsv = `Event,Rank,School,Team,Students,Medal
-Water Quality,2,Obra D Tompkins High School,A,"Student One; Student Two",Yes
-Anatomy & Physiology,4,Obra D Tompkins High School,A,"Student Three; Student Four",Yes
-Tower,7,Obra D Tompkins High School,A,"Student Five; Student Six",No
+Astronomy,6,Obra D Tompkins High School,A,"",Yes
+Anatomy & Physiology,4,Obra D Tompkins High School,A,"",Yes
+Tower,7,Obra D Tompkins High School,A,"",No
 Disease Detectives,1,Seven Lakes High School,A,"Guest Student",Yes`;
 
 const manualSample = `Cy Falls Regional
@@ -29,11 +29,12 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
   const [medalCutoff, setMedalCutoff] = useState(6);
   const [participationPoints, setParticipationPoints] = useState(10);
   const [preview, setPreview] = useState<TournamentImportPreview | null>(null);
+  const [participantSelections, setParticipantSelections] = useState<Record<string, string[]>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const canUseManualDump = currentUser.role === "admin";
 
-  function parse(commit = false) {
+  function parse(commit = false, includeSelections = false) {
     setMessage(null);
     startTransition(async () => {
       const payload = {
@@ -43,7 +44,10 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
         tournamentName,
         date,
         medalCutoff,
-        participationPoints
+        participationPoints,
+        participantSelections: includeSelections
+          ? Object.fromEntries(Object.entries(participantSelections).map(([rowKey, studentIds]) => [rowKey, { studentIds, confirmed: true }]))
+          : undefined
       };
 
       try {
@@ -69,6 +73,12 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
         };
         if (result.preview) {
           setPreview(result.preview);
+          if (!includeSelections) {
+            setParticipantSelections(Object.fromEntries(result.preview.performances.map((performance) => [
+              performance.rowKey,
+              performance.participantResolution?.selected.map((candidate) => candidate.id) ?? []
+            ])));
+          }
         }
         setMessage(result.message ?? result.error ?? null);
       } catch (caught) {
@@ -83,6 +93,7 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
     void file.text().then((text) => {
       setRawInput(text);
       setPreview(null);
+      setParticipantSelections({});
       setMessage(`${file.name} loaded.`);
     });
   }
@@ -95,7 +106,25 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
     setMode(nextMode);
     setRawInput(nextMode === "manual" ? manualSample : sampleCsv);
     setPreview(null);
+    setParticipantSelections({});
     setMessage(null);
+  }
+
+  function updateSource(update: () => void) {
+    update();
+    setPreview(null);
+    setParticipantSelections({});
+    setMessage(null);
+  }
+
+  function toggleParticipant(rowKey: string, studentId: string) {
+    setParticipantSelections((current) => {
+      const selected = current[rowKey] ?? [];
+      return {
+        ...current,
+        [rowKey]: selected.includes(studentId) ? selected.filter((id) => id !== studentId) : [...selected, studentId]
+      };
+    });
   }
 
   return (
@@ -106,7 +135,7 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
             <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
             Duosmium Parser
           </div>
-          <h2 className="mt-1 text-2xl font-black italic uppercase text-white">Tournament Import</h2>
+          <h2 className="mt-1 text-xl font-semibold text-white">Tournament import</h2>
         </div>
         <div className="space-y-4 p-5">
           <div className="inline-flex rounded-md border border-court-line bg-court-elevated p-1">
@@ -138,7 +167,7 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
               Tournament
               <input
                 value={tournamentName}
-                onChange={(event) => setTournamentName(event.target.value)}
+                onChange={(event) => updateSource(() => setTournamentName(event.target.value))}
                 className="h-11 rounded-md border border-court-line bg-court-elevated px-3 text-sm font-bold normal-case text-white outline-none transition focus:border-cyan-400"
               />
             </label>
@@ -147,7 +176,7 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
               <input
                 type="date"
                 value={date}
-                onChange={(event) => setDate(event.target.value)}
+                onChange={(event) => updateSource(() => setDate(event.target.value))}
                 className="h-11 rounded-md border border-court-line bg-court-elevated px-3 text-sm font-bold normal-case text-white outline-none transition focus:border-cyan-400"
               />
             </label>
@@ -157,7 +186,7 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
                 type="number"
                 min={0}
                 value={medalCutoff}
-                onChange={(event) => setMedalCutoff(Number(event.target.value))}
+                onChange={(event) => updateSource(() => setMedalCutoff(Number(event.target.value)))}
                 className="h-11 rounded-md border border-court-line bg-court-elevated px-3 text-sm font-bold normal-case text-white outline-none transition focus:border-cyan-400"
               />
             </label>
@@ -167,7 +196,7 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
                 type="number"
                 min={0}
                 value={participationPoints}
-                onChange={(event) => setParticipationPoints(Number(event.target.value))}
+                onChange={(event) => updateSource(() => setParticipationPoints(Number(event.target.value)))}
                 className="h-11 rounded-md border border-court-line bg-court-elevated px-3 text-sm font-bold normal-case text-white outline-none transition focus:border-cyan-400"
               />
             </label>
@@ -183,7 +212,7 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
 
           <textarea
             value={rawInput}
-            onChange={(event) => setRawInput(event.target.value)}
+            onChange={(event) => updateSource(() => setRawInput(event.target.value))}
             rows={16}
             className="w-full resize-y rounded-md border border-court-line bg-court-elevated p-4 font-mono text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-cyan-400"
             placeholder={
@@ -196,7 +225,7 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
           <div className="flex flex-col gap-2 sm:flex-row">
             <button
               type="button"
-              onClick={() => parse(false)}
+              onClick={() => parse(false, false)}
               disabled={isPending || rawInput.trim().length === 0}
               className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-black uppercase text-black transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -205,18 +234,19 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
             </button>
             <button
               type="button"
-              onClick={() => parse(true)}
-              disabled={isPending || !preview}
+              onClick={() => parse(true, true)}
+              disabled={isPending || !preview?.canCommit}
               className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-cyan-400/50 px-4 text-sm font-black uppercase text-cyan-200 transition hover:bg-cyan-400 hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Upload className="h-4 w-4" />
-              Commit Import
+              Import matched results
             </button>
             <button
               type="button"
               onClick={() => {
                 setRawInput(mode === "manual" ? manualSample : sampleCsv);
                 setPreview(null);
+                setParticipantSelections({});
               }}
               className="inline-flex h-11 items-center justify-center rounded-md border border-court-line px-4 text-sm font-black uppercase text-zinc-300 transition hover:border-white hover:text-white"
             >
@@ -228,7 +258,7 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
       </section>
 
       <section className="rounded-md border border-court-line bg-court-panel p-5">
-        <h2 className="text-xl font-black italic uppercase text-white">Preview</h2>
+        <h2 className="text-xl font-semibold text-white">Match preview</h2>
         {preview ? (
           <div className="mt-4 space-y-4">
             <div className="rounded-md border border-court-line bg-court-elevated p-4">
@@ -263,7 +293,7 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
                 {preview.performances.map((performance, index) => (
                   <div key={`${performance.studentNames.join("-")}-${performance.eventName}-${index}`} className="rounded-md border border-court-line bg-court-elevated p-3 text-sm">
                     <div className="flex items-center justify-between gap-3">
-                      <div className="font-black text-white">{performance.studentNames.join(", ")}</div>
+                      <div className="font-black text-white">{performance.eventName} · Team {performance.teamDesignation || "?"}</div>
                       {performance.isMedal ? (
                         <span className="rounded border border-pink-300/40 bg-pink-300/10 px-2 py-1 text-[10px] font-black uppercase text-pink-200">
                           Medal
@@ -271,8 +301,28 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
                       ) : null}
                     </div>
                     <div className="mt-1 text-zinc-400">
-                      {performance.eventName} · {performance.category} · Team {performance.teamDesignation} · #{performance.rank}
+                      Place #{performance.rank} · Imported names: {performance.rawParticipantText || "none"}
                     </div>
+                    {performance.participantResolution?.status !== "external" ? (
+                      <div className="mt-3 space-y-2">
+                        <div className="text-xs font-semibold text-zinc-600">
+                          {performance.participantResolution?.status === "matched" ? "Matched participants" : "Confirm who competed"}
+                        </div>
+                        {(performance.participantResolution?.candidates ?? []).map((candidate) => (
+                          <label key={candidate.id} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md border border-court-line bg-court-panel px-3 text-sm text-white">
+                            <input
+                              type="checkbox"
+                              checked={(participantSelections[performance.rowKey] ?? []).includes(candidate.id)}
+                              onChange={() => toggleParticipant(performance.rowKey, candidate.id)}
+                              className="h-4 w-4 accent-cyan-400"
+                            />
+                            <span className="flex-1">{candidate.name}</span>
+                            <span className="text-xs text-zinc-500">Team {candidate.teamDesignation}</span>
+                          </label>
+                        ))}
+                        {performance.participantResolution?.issues.map((issue) => <p key={issue} className="text-xs leading-5 text-amber-200">{issue}</p>)}
+                      </div>
+                    ) : <p className="mt-2 text-xs text-zinc-500">Other school · used only for field strength</p>}
                     <div className="mt-2 text-xs font-bold text-cyan-300">
                       {performance.eventPoints} event pts · {performance.participationPoints} participation · {performance.medalPoints} medal
                     </div>
@@ -285,6 +335,15 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
                 {[...preview.warnings, ...preview.missingFields].join(" ")}
               </div>
             ) : null}
+            {!preview.canCommit ? (
+              <div className="rounded-md border border-amber-300/40 bg-amber-300/10 p-3 text-sm text-amber-200">
+                <div className="font-semibold">{preview.blockers.length} match{preview.blockers.length === 1 ? "" : "es"} need review</div>
+                <ul className="mt-2 list-disc space-y-1 pl-5">{preview.blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}</ul>
+                <button type="button" onClick={() => parse(false, true)} disabled={isPending} className="mt-3 inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-semibold text-black disabled:opacity-50">Confirm selected matches</button>
+              </div>
+            ) : (
+              <div className="rounded-md border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-200">All local results are matched and ready to import.</div>
+            )}
           </div>
         ) : (
           <div className="mt-4 rounded-md border border-court-line bg-court-elevated p-4 text-sm text-zinc-500">

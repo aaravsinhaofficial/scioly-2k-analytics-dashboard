@@ -84,7 +84,7 @@ export async function PATCH(request: Request) {
     ok: true,
     message:
       body.decision === "approved"
-        ? "Point log approved and OVR recalculation queued."
+        ? "Point log approved. Preparation totals and readiness will update automatically."
         : "Point log rejected with audit note."
   });
 }

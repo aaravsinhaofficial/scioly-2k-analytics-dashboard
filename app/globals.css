@@ -4,7 +4,57 @@
 
 :root {
   color-scheme: light;
-  background: #f3f6f3;
+  --color-background: 243 246 243;
+  --color-panel: 255 255 255;
+  --color-elevated: 247 249 247;
+  --color-line: 220 228 222;
+  --color-ink: 23 53 42;
+  --color-on-primary: 255 255 255;
+  --color-accent: 47 125 99;
+  --color-accent-strong: 31 107 82;
+  --color-success: 24 121 78;
+  --color-warning: 154 91 19;
+  --color-danger: 178 58 49;
+  --color-danger-strong: 151 45 38;
+  --color-shadow: 20 45 35;
+  --color-zinc-50: 248 250 249;
+  --color-zinc-100: 238 242 239;
+  --color-zinc-200: 225 231 226;
+  --color-zinc-300: 203 213 205;
+  --color-zinc-400: 119 132 124;
+  --color-zinc-500: 100 113 104;
+  --color-zinc-600: 82 96 87;
+  --color-zinc-700: 62 74 66;
+  --color-zinc-800: 41 53 45;
+  --color-zinc-900: 24 35 29;
+  background: rgb(var(--color-background));
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --color-background: 10 16 13;
+  --color-panel: 16 24 20;
+  --color-elevated: 23 34 28;
+  --color-line: 44 58 49;
+  --color-ink: 235 242 237;
+  --color-on-primary: 7 18 13;
+  --color-accent: 100 196 158;
+  --color-accent-strong: 126 214 178;
+  --color-success: 103 211 158;
+  --color-warning: 242 181 87;
+  --color-danger: 255 137 128;
+  --color-danger-strong: 255 164 156;
+  --color-shadow: 0 0 0;
+  --color-zinc-50: 18 27 22;
+  --color-zinc-100: 27 39 32;
+  --color-zinc-200: 40 55 46;
+  --color-zinc-300: 62 79 68;
+  --color-zinc-400: 137 154 143;
+  --color-zinc-500: 158 174 163;
+  --color-zinc-600: 181 195 185;
+  --color-zinc-700: 205 216 208;
+  --color-zinc-800: 225 233 227;
+  --color-zinc-900: 239 244 240;
 }
 
 * {
@@ -13,18 +63,19 @@
 
 html {
   min-height: 100%;
-  background: #f3f6f3;
+  background: rgb(var(--color-background));
   scroll-behavior: smooth;
 }
 
 body {
   min-height: 100%;
   margin: 0;
-  background: #f3f6f3;
-  color: #18231d;
+  background: rgb(var(--color-background));
+  color: rgb(var(--color-ink));
   font-family: "Avenir Next", Avenir, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   letter-spacing: 0;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 160ms ease, color 160ms ease;
 }
 
 button,
@@ -32,6 +83,7 @@ input,
 select,
 textarea {
   font: inherit;
+  min-height: 44px;
 }
 
 button,
@@ -48,12 +100,12 @@ a {
 }
 
 :focus-visible {
-  outline: 3px solid rgba(47, 125, 99, 0.32);
+  outline: 3px solid rgb(var(--color-accent) / 0.32);
   outline-offset: 2px;
 }
 
 ::selection {
-  background: rgba(47, 125, 99, 0.22);
+  background: rgb(var(--color-accent) / 0.22);
 }
 
 ::-webkit-scrollbar {
@@ -66,14 +118,14 @@ a {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c5d0c8;
+  background: rgb(var(--color-zinc-300));
   border-radius: 999px;
   border: 3px solid transparent;
   background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #aebdb2;
+  background: rgb(var(--color-zinc-400));
   border: 3px solid transparent;
   background-clip: padding-box;
 }
@@ -100,10 +152,19 @@ a {
   border-radius: 0.75rem;
 }
 
-input,
-select,
-textarea {
-  min-height: 44px;
+.tour-highlight {
+  position: relative;
+  z-index: 65 !important;
+  border-radius: 0.75rem;
+  box-shadow: 0 0 0 4px rgb(var(--color-accent) / 0.32), 0 12px 36px rgb(var(--color-shadow) / 0.16) !important;
+}
+
+.app-overlay {
+  background: rgb(7 18 13 / 0.55);
+}
+
+html[data-theme="dark"] .app-overlay {
+  background: rgb(0 0 0 / 0.68);
 }
 
 @media (max-width: 640px) {

@@ -259,16 +259,21 @@ export async function POST(request: Request) {
     entity_table: "testoff_sessions",
     entity_id: String(session.id),
     payload_after: {
-      season_id: season.id,
-      event_id: resolvedEventId,
-      name,
-      date,
-      max_score: maxScore,
-      weight,
-      result_count: savedResults?.length ?? ranked.length
+      session: {
+        id: Number(session.id),
+        season_id: season.id,
+        event_id: resolvedEventId,
+        name,
+        date,
+        max_score: maxScore,
+        weight,
+        notes: body.notes?.trim() || null,
+        created_by: currentUser.id
+      },
+      results: savedResults ?? ranked
     },
     undo_action: "testoff.delete",
-    is_reversible: false
+    is_reversible: true
   });
 
   return NextResponse.json(
@@ -307,6 +312,12 @@ export async function DELETE(request: Request) {
   if (loadError) return failure(loadError.message, 500);
   if (!session) return failure("This testoff session no longer exists.", 404);
 
+  const { data: results, error: resultsError } = await supabase
+    .from("testoff_results")
+    .select("*")
+    .eq("session_id", sessionId);
+  if (resultsError) return failure(resultsError.message, 500);
+
   const { error: deleteError } = await supabase.from("testoff_sessions").delete().eq("id", sessionId);
   if (deleteError) return failure(deleteError.message, 500);
 
@@ -318,8 +329,9 @@ export async function DELETE(request: Request) {
     ip_address: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
     entity_table: "testoff_sessions",
     entity_id: String(sessionId),
-    payload_before: session,
-    is_reversible: false
+    payload_before: { session, results: results ?? [] },
+    undo_action: "testoff.restore",
+    is_reversible: true
   });
 
   return NextResponse.json({

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Loader2, RotateCcw } from "lucide-react";
 import type { AuditLogEntry, Student } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
@@ -17,6 +17,8 @@ export function AuditLogTable({ logs, currentUser }: AuditLogTableProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [undoingId, setUndoingId] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => setRows(logs), [logs]);
 
   function undo(log: AuditLogEntry) {
     setMessage(null);
@@ -44,7 +46,7 @@ export function AuditLogTable({ logs, currentUser }: AuditLogTableProps) {
     <div className="overflow-hidden rounded-md border border-court-line bg-court-panel">
       <div className="flex flex-col gap-3 border-b border-court-line p-5 md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="text-2xl font-black italic uppercase text-white">System Audit Log</h2>
+          <h2 className="text-xl font-semibold text-white">System audit log</h2>
           <p className="mt-1 text-sm text-zinc-400">Admin undo creates a new reversal entry and marks the original as reversed.</p>
         </div>
         {message ? <div className="rounded-md border border-court-line bg-court-elevated p-3 text-sm text-zinc-300">{message}</div> : null}

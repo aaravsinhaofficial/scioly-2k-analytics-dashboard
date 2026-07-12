@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Flame } from "lucide-react";
 import { Avatar } from "@/components/Avatar";
-import { OvrBadge } from "@/components/OvrBadge";
+import { ReadinessBadge } from "@/components/ReadinessBadge";
 import type { PlayerDetail } from "@/lib/types";
 import { formatNumber } from "@/lib/utils";
 
@@ -29,7 +29,7 @@ export function ActivityPanel({ players }: ActivityPanelProps) {
               <div className="truncate text-sm font-semibold text-white">{player.name}</div>
               <div className="text-xs text-zinc-500">{formatNumber(player.thirtyDayPoints)} points in 30 days</div>
             </div>
-            <OvrBadge value={player.ovrRating} size="sm" />
+            <ReadinessBadge value={player.readinessScore} status={player.readinessStatus} size="sm" />
           </Link>
         ))}
       </div>

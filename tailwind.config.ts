@@ -11,24 +11,24 @@ const config: Config = {
       inherit: "inherit",
       current: "currentColor",
       transparent: "transparent",
-      white: "#17352a",
-      black: "#ffffff",
+      white: "rgb(var(--color-ink) / <alpha-value>)",
+      black: "rgb(var(--color-on-primary) / <alpha-value>)",
       zinc: {
-        50: "#f8faf9",
-        100: "#eef2ef",
-        200: "#e1e7e2",
-        300: "#cbd5cd",
-        400: "#77847c",
-        500: "#647168",
-        600: "#526057",
-        700: "#3e4a42",
-        800: "#29352d",
-        900: "#18231d"
+        50: "rgb(var(--color-zinc-50) / <alpha-value>)",
+        100: "rgb(var(--color-zinc-100) / <alpha-value>)",
+        200: "rgb(var(--color-zinc-200) / <alpha-value>)",
+        300: "rgb(var(--color-zinc-300) / <alpha-value>)",
+        400: "rgb(var(--color-zinc-400) / <alpha-value>)",
+        500: "rgb(var(--color-zinc-500) / <alpha-value>)",
+        600: "rgb(var(--color-zinc-600) / <alpha-value>)",
+        700: "rgb(var(--color-zinc-700) / <alpha-value>)",
+        800: "rgb(var(--color-zinc-800) / <alpha-value>)",
+        900: "rgb(var(--color-zinc-900) / <alpha-value>)"
       },
       cyan: {
-        200: "#2f7d63",
-        300: "#2f7d63",
-        400: "#1f6b52"
+        200: "rgb(var(--color-accent) / <alpha-value>)",
+        300: "rgb(var(--color-accent) / <alpha-value>)",
+        400: "rgb(var(--color-accent-strong) / <alpha-value>)"
       },
       fuchsia: {
         300: "#5267b8",
@@ -48,31 +48,31 @@ const config: Config = {
         500: "#3566a8"
       },
       emerald: {
-        100: "#e8f5ed",
-        200: "#18794e",
-        300: "#18794e",
-        400: "#18794e"
+        100: "rgb(var(--color-success) / <alpha-value>)",
+        200: "rgb(var(--color-success) / <alpha-value>)",
+        300: "rgb(var(--color-success) / <alpha-value>)",
+        400: "rgb(var(--color-success) / <alpha-value>)"
       },
       amber: {
-        100: "#fff6e5",
-        200: "#9a5b13",
-        300: "#9a5b13"
+        100: "rgb(var(--color-warning) / <alpha-value>)",
+        200: "rgb(var(--color-warning) / <alpha-value>)",
+        300: "rgb(var(--color-warning) / <alpha-value>)"
       },
       red: {
-        100: "#fff0ee",
-        200: "#b23a31",
-        300: "#b23a31",
-        400: "#a8322a",
-        500: "#972d26"
+        100: "rgb(var(--color-danger) / <alpha-value>)",
+        200: "rgb(var(--color-danger) / <alpha-value>)",
+        300: "rgb(var(--color-danger) / <alpha-value>)",
+        400: "rgb(var(--color-danger-strong) / <alpha-value>)",
+        500: "rgb(var(--color-danger-strong) / <alpha-value>)"
       }
     },
     extend: {
       colors: {
         court: {
-          black: "#f3f6f3",
-          panel: "#ffffff",
-          elevated: "#f7f9f7",
-          line: "#dce4de"
+          black: "rgb(var(--color-background) / <alpha-value>)",
+          panel: "rgb(var(--color-panel) / <alpha-value>)",
+          elevated: "rgb(var(--color-elevated) / <alpha-value>)",
+          line: "rgb(var(--color-line) / <alpha-value>)"
         },
         tier: {
           opal: "#06B6D4",
@@ -84,8 +84,8 @@ const config: Config = {
         }
       },
       boxShadow: {
-        opal: "0 1px 2px rgba(20, 45, 35, 0.08)",
-        panel: "0 1px 2px rgba(20, 45, 35, 0.06), 0 8px 24px rgba(20, 45, 35, 0.04)"
+        opal: "0 1px 2px rgb(var(--color-shadow) / 0.08)",
+        panel: "0 1px 2px rgb(var(--color-shadow) / 0.08), 0 8px 24px rgb(var(--color-shadow) / 0.06)"
       }
     }
   },

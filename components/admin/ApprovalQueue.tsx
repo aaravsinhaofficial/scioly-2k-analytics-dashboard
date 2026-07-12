@@ -20,10 +20,11 @@ export function ApprovalQueue({ queue }: ApprovalQueueProps) {
   const [items, setItems] = useState(queue);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [rejecting, setRejecting] = useState<ApprovalQueueItem | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
   const [isPending, startTransition] = useTransition();
 
-  function decide(id: number, decision: "approved" | "rejected") {
-    const notes = decision === "rejected" ? window.prompt("Reason for rejection?") ?? "" : undefined;
+  function decide(id: number, decision: "approved" | "rejected", notes?: string) {
     setBusyId(id);
     setMessage(null);
     startTransition(async () => {
@@ -42,6 +43,8 @@ export function ApprovalQueue({ queue }: ApprovalQueueProps) {
           setItems((current) => current.filter((item) => item.id !== id));
         }
         setMessage(payload.message ?? payload.error ?? null);
+        setRejecting(null);
+        setRejectionReason("");
       } catch (caught) {
         setMessage(caught instanceof Error ? caught.message : "Could not update this point log.");
       }
@@ -52,8 +55,8 @@ export function ApprovalQueue({ queue }: ApprovalQueueProps) {
   return (
     <div className="rounded-md border border-court-line bg-court-panel">
       <div className="border-b border-court-line p-5">
-        <h2 className="text-2xl font-black italic uppercase text-white">Approval Queue</h2>
-        <p className="mt-1 text-sm text-zinc-400">Pending point logs across the roster.</p>
+        <div className="flex items-center gap-3"><h2 className="text-xl font-semibold text-white">Approval queue</h2><span className="rounded-full bg-cyan-400/10 px-2.5 py-1 text-xs font-semibold text-cyan-300">{items.length} pending</span></div>
+        <p className="mt-1 text-sm text-zinc-400">Review submitted preparation. Every decision can be reversed by an admin from the audit log.</p>
       </div>
 
       {message ? <div className="m-4 rounded-md border border-court-line bg-court-elevated p-3 text-sm text-zinc-300">{message}</div> : null}
@@ -65,7 +68,7 @@ export function ApprovalQueue({ queue }: ApprovalQueueProps) {
               <th className="px-4 py-3">Student</th>
               <th className="px-4 py-3">Activity</th>
               <th className="px-4 py-3">Submitted</th>
-              <th className="px-4 py-3 text-right">Minutes</th>
+              <th className="px-4 py-3 text-right">Details</th>
               <th className="px-4 py-3 text-right">Points</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3 text-right">Action</th>
@@ -88,7 +91,9 @@ export function ApprovalQueue({ queue }: ApprovalQueueProps) {
                   </td>
                   <td className="px-4 py-4 font-bold text-zinc-200">{activityLabels[item.activityType]}</td>
                   <td className="px-4 py-4 text-zinc-400">{formatDate(item.submittedAt)}</td>
-                  <td className="px-4 py-4 text-right font-black text-white">{item.minutes}</td>
+                  <td className="px-4 py-4 text-right font-medium text-white">
+                    {item.minutes > 0 ? `${item.minutes} min` : item.quantity ? `${item.quantity} items` : "—"}
+                  </td>
                   <td className="px-4 py-4 text-right font-black text-cyan-300">{formatNumber(item.points)}</td>
                   <td className="px-4 py-4">
                     <StatusBadge status={item.status} />
@@ -106,7 +111,7 @@ export function ApprovalQueue({ queue }: ApprovalQueueProps) {
                       </button>
                       <button
                         type="button"
-                        onClick={() => decide(item.id, "rejected")}
+                        onClick={() => { setRejecting(item); setRejectionReason(""); }}
                         disabled={isPending && busyId === item.id}
                         className="grid h-9 w-9 place-items-center rounded-md border border-red-400/40 bg-red-400/10 text-red-200 transition hover:bg-red-400 hover:text-black"
                         aria-label={`Reject ${item.student.name}'s log`}
@@ -127,6 +132,23 @@ export function ApprovalQueue({ queue }: ApprovalQueueProps) {
           </tbody>
         </table>
       </div>
+
+      {rejecting ? (
+        <div className="app-overlay fixed inset-0 z-50 grid place-items-center p-4" role="dialog" aria-modal="true" aria-labelledby="reject-heading">
+          <div className="w-full max-w-md rounded-md border border-court-line bg-court-panel p-5 shadow-panel">
+            <h2 id="reject-heading" className="text-xl font-semibold text-white">Reject {rejecting.student.name}&apos;s entry?</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-500">Give a useful reason so the student knows what to correct. An admin can undo this decision later.</p>
+            <label className="mt-4 grid gap-2 text-sm font-medium text-zinc-600">
+              Reason
+              <textarea value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} rows={4} autoFocus className="rounded-md border border-court-line bg-court-panel p-3 text-white outline-none focus:border-cyan-400" />
+            </label>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setRejecting(null)} className="rounded-md border border-court-line px-4 text-sm font-medium text-zinc-600">Cancel</button>
+              <button type="button" onClick={() => decide(rejecting.id, "rejected", rejectionReason.trim())} disabled={!rejectionReason.trim() || isPending} className="rounded-md bg-red-400 px-4 text-sm font-semibold text-black disabled:opacity-50">Reject entry</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

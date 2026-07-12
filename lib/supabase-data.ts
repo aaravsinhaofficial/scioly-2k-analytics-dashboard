@@ -148,7 +148,10 @@ export async function loadSupabaseAnalyticsDataset(): Promise<AnalyticsDataset> 
     performanceRows,
     pointRows,
     snapshotRows,
-    auditRows
+    auditRows,
+    seasonRows,
+    testoffSessionRows,
+    testoffResultRows
   ] = await Promise.all([
     supabase.from("students").select("*"),
     supabase.from("teams").select("*"),
@@ -158,7 +161,10 @@ export async function loadSupabaseAnalyticsDataset(): Promise<AnalyticsDataset> 
     loadAllRows(supabase, "performances"),
     loadAllRows(supabase, "grind_points"),
     loadAllRows(supabase, "ovr_snapshots"),
-    loadAllRows(supabase, "audit_logs")
+    loadAllRows(supabase, "audit_logs"),
+    loadAllRows(supabase, "seasons"),
+    loadAllRows(supabase, "testoff_sessions"),
+    loadAllRows(supabase, "testoff_results")
   ]);
 
   const baseResults = [studentResult, teamResult, memberResult, eventResult, tournamentResult];
@@ -287,6 +293,27 @@ export async function loadSupabaseAnalyticsDataset(): Promise<AnalyticsDataset> 
     };
   });
 
+  const activeSeasonIds = new Set(
+    seasonRows.filter((row) => Boolean(row.is_active)).map((row) => numberValue(row.id))
+  );
+  const sessionById = new Map(
+    testoffSessionRows.map((row) => [numberValue(row.id), {
+      seasonId: numberValue(row.season_id),
+      weight: numberValue(row.weight, 1)
+    }])
+  );
+  const testoffScores = testoffResultRows.flatMap((row) => {
+    const session = sessionById.get(numberValue(row.session_id));
+    if (!session) return [];
+    return [{
+      studentId: stringValue(row.student_id),
+      score: numberValue(row.ranking_score),
+      weight: session.weight,
+      seasonId: session.seasonId,
+      isActiveSeason: activeSeasonIds.has(session.seasonId)
+    }];
+  });
+
   return {
     students,
     teams,
@@ -297,6 +324,7 @@ export async function loadSupabaseAnalyticsDataset(): Promise<AnalyticsDataset> 
     pointLogs,
     snapshots,
     auditLogs,
+    testoffScores,
     now: new Date()
   };
 }

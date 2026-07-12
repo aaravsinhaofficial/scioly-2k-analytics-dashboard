@@ -3,13 +3,12 @@
 import { useMemo, useState } from "react";
 import { ArrowDown, ArrowDownUp, ArrowUp, Columns3, Download, Search, Trophy } from "lucide-react";
 import { Avatar } from "@/components/Avatar";
-import { DeltaIndicator } from "@/components/DeltaIndicator";
-import { OvrBadge } from "@/components/OvrBadge";
+import { ReadinessBadge } from "@/components/ReadinessBadge";
 import { PlayerProfile } from "@/components/profile/PlayerProfile";
 import type { PlayerDetail } from "@/lib/types";
 import { cn, formatNumber } from "@/lib/utils";
 
-type SortKey = "rank" | "name" | "ovr" | "study" | "build" | "points30" | "avg" | "medals" | "potential" | "events";
+type SortKey = "rank" | "name" | "readiness" | "study" | "build" | "points30" | "avg" | "medals" | "events";
 
 interface RosterTableProps {
   players: PlayerDetail[];
@@ -18,10 +17,9 @@ interface RosterTableProps {
 const columns: Array<{ key: SortKey; label: string; align?: "right" | "left"; secondary?: boolean }> = [
   { key: "rank", label: "Rank" },
   { key: "name", label: "Student" },
-  { key: "ovr", label: "OVR", align: "right" },
+  { key: "readiness", label: "Readiness", align: "right" },
   { key: "study", label: "Study", align: "right", secondary: true },
   { key: "build", label: "Build", align: "right", secondary: true },
-  { key: "potential", label: "Potential", align: "right", secondary: true },
   { key: "medals", label: "Medals", align: "right", secondary: true },
   { key: "points30", label: "30-day points", align: "right" },
   { key: "avg", label: "Avg. place", align: "right" },
@@ -32,19 +30,18 @@ function sortValue(player: PlayerDetail, key: SortKey) {
   switch (key) {
     case "rank": return player.rank;
     case "name": return player.name;
-    case "ovr": return player.ovrRating;
+    case "readiness": return player.readinessScore;
     case "study": return player.studyRating ?? -1;
     case "build": return player.buildRating ?? -1;
     case "points30": return player.thirtyDayPoints;
     case "avg": return player.avgPlacement ?? 999;
     case "medals": return player.medalCount;
-    case "potential": return player.potentialRating;
     case "events": return player.profileEvents?.join(", ") ?? "";
   }
 }
 
 export function RosterTable({ players }: RosterTableProps) {
-  const [sortKey, setSortKey] = useState<SortKey>("ovr");
+  const [sortKey, setSortKey] = useState<SortKey>("readiness");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [searchQuery, setSearchQuery] = useState("");
   const [teamFilter, setTeamFilter] = useState("all");
@@ -93,7 +90,7 @@ export function RosterTable({ players }: RosterTableProps) {
 
   return (
     <>
-      <section className="overflow-hidden rounded-md border border-court-line bg-court-panel shadow-sm" aria-labelledby="roster-heading">
+      <section className="overflow-hidden rounded-md border border-court-line bg-court-panel shadow-sm" aria-labelledby="roster-heading" data-tour="roster">
         <div className="border-b border-court-line p-4 sm:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
@@ -211,10 +208,9 @@ export function RosterTable({ players }: RosterTableProps) {
                         </button>
                       </td>
                     );
-                    if (column.key === "ovr") return <td key={column.key} className="px-4 py-3 text-right"><div className="inline-flex flex-col items-end gap-1"><OvrBadge value={player.ovrRating} size="sm" /><DeltaIndicator delta={player.ovrDelta} compact metric="ovr" /></div></td>;
+                    if (column.key === "readiness") return <td key={column.key} className="px-4 py-3 text-right"><ReadinessBadge value={player.readinessScore} status={player.readinessStatus} size="sm" /></td>;
                     if (column.key === "study") return <td key={column.key} className="px-4 py-3 text-right font-medium tabular-nums text-white">{player.studyRating ?? <span className="text-zinc-500">—</span>}</td>;
                     if (column.key === "build") return <td key={column.key} className="px-4 py-3 text-right font-medium tabular-nums text-white">{player.buildRating ?? <span className="text-zinc-500">—</span>}</td>;
-                    if (column.key === "potential") return <td key={column.key} className="px-4 py-3 text-right font-medium tabular-nums text-white">{player.potentialRating.toFixed(1)}</td>;
                     if (column.key === "medals") return <td key={column.key} className="px-4 py-3 text-right font-medium tabular-nums text-white">{player.medalCount}</td>;
                     if (column.key === "points30") return <td key={column.key} className="px-4 py-3 text-right font-medium tabular-nums text-cyan-300">{formatNumber(player.thirtyDayPoints)}</td>;
                     if (column.key === "avg") return <td key={column.key} className="px-4 py-3 text-right"><span className="font-medium tabular-nums text-white">{typeof player.avgPlacement === "number" ? player.avgPlacement.toFixed(1) : "—"}</span></td>;
@@ -243,7 +239,7 @@ export function RosterTable({ players }: RosterTableProps) {
                       <span className="block truncate font-semibold text-white">{player.name}</span>
                       <span className="mt-0.5 block text-xs text-zinc-500">Team {player.teamDesignation} · Grade {player.grade}</span>
                     </span>
-                    <OvrBadge value={player.ovrRating} size="sm" />
+                    <ReadinessBadge value={player.readinessScore} status={player.readinessStatus} size="sm" />
                   </span>
                   <span className="mt-3 grid grid-cols-3 gap-2 text-xs">
                     <span><span className="block text-zinc-500">30-day points</span><span className="mt-0.5 block font-semibold tabular-nums text-white">{formatNumber(player.thirtyDayPoints)}</span></span>

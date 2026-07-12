@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
 import { ArrowRight, Chrome, GraduationCap, Loader2, Mail } from "lucide-react";
 import { validatePassword } from "@/lib/password";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
 type AuthMode = "login" | "signup" | "reset-request" | "reset-update";
 
@@ -49,7 +50,11 @@ export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(() =>
+    searchParams.get("error") === "auth_callback_failed"
+      ? "Google sign-in could not be completed. Please try again or contact your team administrator."
+      : null
+  );
   const [isPending, startTransition] = useTransition();
   const needsEmail = mode !== "reset-update";
   const needsPassword = mode !== "reset-request";
@@ -138,6 +143,7 @@ export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-court-black px-4 py-10">
+      <div className="absolute right-4 top-4"><ThemeToggle compact /></div>
       <div className="w-full max-w-md">
         <Link href="/" className="mb-7 flex items-center justify-center gap-3" aria-label="SciOly Tracker home">
           <span className="grid h-11 w-11 place-items-center rounded-md bg-white text-black shadow-sm">

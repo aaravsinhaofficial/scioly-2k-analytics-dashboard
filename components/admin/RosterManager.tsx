@@ -4,19 +4,19 @@ import { DndContext, type DragEndEvent, useDraggable, useDroppable } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Loader2, Save } from "lucide-react";
 import { useState, useTransition } from "react";
-import { OvrBadge } from "@/components/OvrBadge";
+import { ReadinessBadge } from "@/components/ReadinessBadge";
 
 interface RosterMember {
   id: string;
   name: string;
-  ovr: number;
-  tier: string;
+  readiness: number;
+  status: "Needs data" | "Developing" | "On track" | "Ready";
 }
 
 interface RosterGroup {
   id: string;
   label: string;
-  ovr: number;
+  readiness: number;
   members: RosterMember[];
 }
 
@@ -43,9 +43,9 @@ function DraggableMember({ member }: { member: RosterMember }) {
       <GripVertical className="h-4 w-4 text-zinc-500" aria-hidden="true" />
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-black text-white">{member.name}</div>
-        <div className="text-[11px] font-black uppercase text-zinc-500">{member.tier}</div>
+        <div className="text-[11px] font-black uppercase text-zinc-500">{member.status}</div>
       </div>
-      <OvrBadge value={member.ovr} size="sm" />
+      <ReadinessBadge value={member.readiness} status={member.status} size="sm" />
     </div>
   );
 }
@@ -65,7 +65,7 @@ function TeamDropColumn({ group }: { group: RosterGroup }) {
           <div className="text-xs font-black uppercase text-zinc-500">{group.label}</div>
           <div className="text-sm font-bold text-zinc-300">{group.members.length} members</div>
         </div>
-        <OvrBadge value={group.ovr} size="sm" />
+        <ReadinessBadge value={group.readiness} size="sm" />
       </div>
       <div className="space-y-2">
         {group.members.map((member) => (
@@ -142,8 +142,8 @@ export function RosterManager({ rosters }: RosterManagerProps) {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 rounded-md border border-court-line bg-court-panel p-5 md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="text-2xl font-black italic uppercase text-white">Roster Editor</h2>
-          <p className="mt-1 text-sm text-zinc-400">Drag students between teams. Changes are audit-ready in production.</p>
+          <h2 className="text-xl font-semibold text-white">Roster editor</h2>
+          <p className="mt-1 text-sm text-zinc-500">Drag students between teams, then save. Admins can undo a saved roster change from the audit log.</p>
         </div>
         <button
           type="button"

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Users } from "lucide-react";
-import { OvrBadge } from "@/components/OvrBadge";
+import { ReadinessBadge } from "@/components/ReadinessBadge";
 import type { TeamComparison } from "@/lib/types";
 
 interface TeamMiniPanelProps {
@@ -27,16 +27,16 @@ export function TeamMiniPanel({ teams }: TeamMiniPanelProps) {
                 <div className="text-xs font-medium text-zinc-500">Team {team.designation}</div>
                 <div className="font-semibold text-white">{team.members.length} members</div>
               </div>
-              <OvrBadge value={team.teamOvr} size="sm" />
+              <ReadinessBadge value={team.teamReadiness} size="sm" />
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
               <div>
                 <div className="font-medium text-zinc-500">Top study</div>
-                <div className="truncate text-zinc-200">{team.topStudy?.name ?? "N/A"}</div>
+                <div className="truncate text-zinc-200">{team.topStudy?.name ?? "No data yet"}</div>
               </div>
               <div>
                 <div className="font-medium text-zinc-500">Top build</div>
-                <div className="truncate text-zinc-200">{team.topBuild?.name ?? "N/A"}</div>
+                <div className="truncate text-zinc-200">{team.topBuild?.name ?? "No data yet"}</div>
               </div>
             </div>
           </div>

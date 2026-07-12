@@ -101,7 +101,7 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
         if (!response.ok || !payload.ok) {
           throw new Error(payload.error ?? "Could not submit point log.");
         }
-        setMessage(payload.message ?? payload.error ?? "Point log submitted.");
+        setMessage(`${payload.message ?? payload.error ?? "Point log submitted."} View it in your submission history.`);
       } catch (caught) {
         setMessage(caught instanceof Error ? caught.message : "Could not submit point log.");
       }
@@ -116,7 +116,7 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
           <p className="mt-1 text-sm leading-5 text-zinc-500">Your entry will be sent to an officer for approval.</p>
         </div>
         <div className="rounded-md border border-cyan-300/30 bg-cyan-300/10 px-3 py-2 text-right">
-          <div className="text-xs font-medium text-cyan-300">Points</div>
+          <div className="text-xs font-medium text-cyan-300">If approved</div>
           <div className="text-xl font-semibold tabular-nums text-white">{formatNumber(points)}</div>
         </div>
       </div>

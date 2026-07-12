@@ -122,6 +122,13 @@ export async function getProfileData(id: string) {
   };
 }
 
+export async function getPointsPageData() {
+  const currentUser = await getCurrentUser();
+  const analytics = await getAnalyticsForRequest();
+  const player = analytics.getPlayerDetail(currentUser.id) ?? analytics.detailForStudent(currentUser);
+  return { currentUser, player: visiblePlayer(player, currentUser) };
+}
+
 export async function getApprovePageData() {
   const currentUser = await requireRole("officer");
   const analytics = await getAnalyticsForRequest();

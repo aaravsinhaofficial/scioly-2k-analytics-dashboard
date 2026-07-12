@@ -72,6 +72,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, message: "Static demo: custom category staged locally." });
   }
 
+  const { data: before } = await supabase
+    .from("custom_point_categories")
+    .select("*")
+    .eq("name", name)
+    .maybeSingle();
   const { data, error } = await supabase
     .from("custom_point_categories")
     .upsert(
@@ -98,8 +103,9 @@ export async function POST(request: Request) {
     ip_address: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
     entity_table: "custom_point_categories",
     entity_id: String(data?.id ?? ""),
+    payload_before: before,
     payload_after: { name, default_points: defaultPoints, max_points: maxPoints },
-    undo_action: "category.deactivate",
+    undo_action: "category.restore",
     is_reversible: true
   });
 

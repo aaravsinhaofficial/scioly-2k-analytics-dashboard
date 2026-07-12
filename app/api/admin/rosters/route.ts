@@ -51,6 +51,17 @@ export async function PUT(request: Request) {
     return NextResponse.json({ ok: true, message: "Demo roster updated for this browser session." });
   }
 
+  const [teamResult, membershipResult] = await Promise.all([
+    supabase.from("teams").select("id"),
+    supabase.from("team_members").select("team_id,student_id")
+  ]);
+  const beforeGroups = (teamResult.data ?? []).map((team) => ({
+    teamId: String(team.id),
+    memberIds: (membershipResult.data ?? [])
+      .filter((membership) => String(membership.team_id) === String(team.id))
+      .map((membership) => String(membership.student_id))
+  }));
+
   const { error: rosterError } = await supabase.rpc("replace_team_memberships", {
     roster_groups: groups
   });
@@ -65,8 +76,11 @@ export async function PUT(request: Request) {
     reason: "Admin roster editor save",
     ip_address: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
     entity_table: "team_members",
-    payload_after: groups,
-    is_reversible: false
+    entity_id: "all",
+    payload_before: { groups: beforeGroups },
+    payload_after: { groups },
+    undo_action: "roster.restore",
+    is_reversible: true
   });
 
   return NextResponse.json({ ok: true, message: "Team rosters saved." });

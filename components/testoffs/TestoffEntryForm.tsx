@@ -126,7 +126,7 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
     return (
       <section className="rounded-md border border-court-line bg-court-panel p-8 text-center">
         <ClipboardCheck className="mx-auto h-10 w-10 text-zinc-600" aria-hidden="true" />
-        <h2 className="mt-4 text-2xl font-black italic uppercase text-white">Score Entry Is Offline</h2>
+        <h2 className="mt-4 text-xl font-semibold text-white">Score entry is offline</h2>
         <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-zinc-400">
           This demo has no connected database. Configure Supabase on Vercel before entering real team scores.
         </p>
@@ -138,7 +138,7 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
     return (
       <section className="rounded-md border border-court-line bg-court-panel p-8 text-center">
         <Users className="mx-auto h-10 w-10 text-zinc-600" aria-hidden="true" />
-        <h2 className="mt-4 text-2xl font-black italic uppercase text-white">Roster Setup Required</h2>
+        <h2 className="mt-4 text-xl font-semibold text-white">Roster setup required</h2>
         <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-zinc-400">
           Add at least one student before creating a testoff session.
         </p>
@@ -151,7 +151,7 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
       <section className="h-fit rounded-md border border-court-line bg-court-panel">
         <div className="border-b border-court-line p-5">
           <div className="text-xs font-black uppercase text-cyan-300">Session Setup</div>
-          <h2 className="mt-1 text-2xl font-black italic uppercase text-white">Testoff Details</h2>
+          <h2 className="mt-1 text-xl font-semibold text-white">Testoff details</h2>
         </div>
         <div className="grid gap-4 p-5">
           <label className="grid gap-2 text-xs font-black uppercase text-zinc-500">
@@ -310,7 +310,7 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
         <div className="flex flex-col gap-3 border-b border-court-line p-5 md:flex-row md:items-end md:justify-between">
           <div>
             <div className="text-xs font-black uppercase text-pink-300">Roster Scores</div>
-            <h2 className="mt-1 text-2xl font-black italic uppercase text-white">Enter Raw Scores</h2>
+            <h2 className="mt-1 text-xl font-semibold text-white">Enter raw scores</h2>
             <p className="mt-1 text-sm text-zinc-400">Blank students are omitted. Zero is a valid entered score.</p>
           </div>
           <div className="text-xs font-black uppercase text-zinc-500">{enteredCount} entered</div>

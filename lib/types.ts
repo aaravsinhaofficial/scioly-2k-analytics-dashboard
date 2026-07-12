@@ -22,6 +22,7 @@ export interface Student {
   role: UserRole;
   grade: number;
   profilePictureUrl?: string;
+  /** Legacy database rating retained for backward-compatible reads. */
   ovrRating: number;
   studyRating?: number;
   buildRating?: number;
@@ -207,7 +208,7 @@ export interface EventBreakdown {
   category: EventCategory;
   timesCompeted: number;
   avgPlacement: number;
-  eventOvr: number;
+  eventReadiness: number;
   bestFinish: number;
   medals: number;
   participationPoints: number;
@@ -221,9 +222,18 @@ export interface PlayerDetail extends Student {
   avgPlacement?: number;
   tournamentsAttended: number;
   medalCount: number;
-  potentialRating: number;
+  readinessScore: number;
+  competitionScore: number;
+  testoffScore: number;
+  preparationScore: number;
+  readinessIsProvisional: boolean;
+  readinessConfidence: "low" | "medium" | "high";
+  readinessStatus: "Needs data" | "Developing" | "On track" | "Ready";
+  readinessResultCount: number;
+  approvedPracticePoints: number;
+  pendingPracticePoints: number;
+  competitionPoints: number;
   thirtyDayPoints: number;
-  ovrDelta: DeltaValue;
   avgPlacementDelta?: DeltaValue;
   totalPointsDelta: DeltaValue;
   competitionHistory: CompetitionHistoryRow[];
@@ -236,7 +246,7 @@ export interface TeamComparison {
   id: string;
   schoolName: string;
   designation: string;
-  teamOvr: number;
+  teamReadiness: number;
   members: PlayerDetail[];
   topStudy?: PlayerDetail;
   topBuild?: PlayerDetail;
@@ -244,6 +254,9 @@ export interface TeamComparison {
 }
 
 export interface TournamentImportPerformance {
+  rowKey: string;
+  sourceRow?: number;
+  rawParticipantText: string;
   studentName?: string;
   studentNames: string[];
   eventName: string;
@@ -256,6 +269,21 @@ export interface TournamentImportPerformance {
   medalPoints: number;
   eventPoints: number;
   teamDesignation: string;
+  participantResolution?: {
+    status: "matched" | "needs_confirmation" | "unresolved" | "external";
+    method: "provided_exact" | "roster_event_suggestion" | "manual_override" | "none";
+    selected: TournamentParticipantCandidate[];
+    candidates: TournamentParticipantCandidate[];
+    unmatchedSourceNames: string[];
+    issues: string[];
+  };
+}
+
+export interface TournamentParticipantCandidate {
+  id: string;
+  name: string;
+  teamDesignation: string;
+  profileEvents: string[];
 }
 
 export interface TournamentImportPreview {
@@ -271,6 +299,8 @@ export interface TournamentImportPreview {
   performances: TournamentImportPerformance[];
   warnings: string[];
   missingFields: string[];
+  blockers: string[];
+  canCommit: boolean;
 }
 
 export interface TestoffSeason {

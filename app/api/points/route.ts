@@ -96,6 +96,7 @@ export async function POST(request: Request) {
   }
 
   let acceptedPoints = points;
+  let insertedLog: Record<string, unknown> | null = null;
   if (supabase) {
     const { data, error } = await supabase
       .from("grind_points")
@@ -110,7 +111,7 @@ export async function POST(request: Request) {
         metadata: body.activityType === "custom_activity" ? { requestedLabel: body.customLabel ?? null } : {},
         is_approved: false
       })
-      .select("points")
+      .select("*")
       .single();
 
     if (error) {
@@ -121,6 +122,19 @@ export async function POST(request: Request) {
       );
     }
     acceptedPoints = Number(data?.points ?? points);
+    insertedLog = data as Record<string, unknown>;
+    await supabase.from("audit_logs").insert({
+      actor_id: currentUser.id,
+      action: "points.submit",
+      target: `Point log #${String(data?.id ?? "")}`,
+      reason: "Member practice submission",
+      ip_address: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+      entity_table: "grind_points",
+      entity_id: String(data?.id ?? ""),
+      payload_after: insertedLog,
+      undo_action: "points.delete",
+      is_reversible: true
+    });
   }
 
   return NextResponse.json({

@@ -4,12 +4,10 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { CalendarDays, ExternalLink, Medal, Trophy, X } from "lucide-react";
 import { Avatar } from "@/components/Avatar";
-import { DeltaIndicator } from "@/components/DeltaIndicator";
-import { OvrBadge } from "@/components/OvrBadge";
+import { ReadinessBadge } from "@/components/ReadinessBadge";
 import { StatTile } from "@/components/StatTile";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PlayerTrendChart } from "@/components/charts/PlayerTrendChart";
-import { getRatingTier } from "@/lib/rating";
 import type { PlayerDetail } from "@/lib/types";
 import { cn, formatDate, formatNumber } from "@/lib/utils";
 
@@ -21,7 +19,6 @@ interface PlayerProfileProps {
 
 export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileProps) {
   const [tab, setTab] = useState<"competitions" | "points">("competitions");
-  const tier = getRatingTier(player.ovrRating);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -46,7 +43,7 @@ export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileP
       <div className="border-b border-court-line bg-court-panel/80">
         <div className="flex flex-col gap-6 p-5 md:flex-row md:items-center md:justify-between md:p-8">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-            <Avatar name={player.name} src={player.profilePictureUrl} size="xl" borderColor={tier.color} />
+            <Avatar name={player.name} src={player.profilePictureUrl} size="xl" />
             <div>
               <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-500">
                 <span>Rank #{player.rank}</span>
@@ -57,8 +54,8 @@ export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileP
                 {player.name}
               </h1>
               <div className="mt-3 flex flex-wrap items-center gap-3">
-                <OvrBadge value={player.ovrRating} showTier />
-                <DeltaIndicator delta={player.ovrDelta} metric="ovr" />
+                <ReadinessBadge value={player.readinessScore} status={player.readinessStatus} showLabel />
+                {player.readinessIsProvisional ? <span className="text-xs font-medium text-amber-200">Provisional</span> : null}
               </div>
               {player.profileEvents && player.profileEvents.length > 0 ? (
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -100,29 +97,24 @@ export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileP
       <div className="space-y-6 p-5 md:p-8">
         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <StatTile
-            label="Overall Rating"
-            value={<OvrBadge value={player.ovrRating} size="sm" showTier />}
-            detail={<DeltaIndicator delta={player.ovrDelta} metric="ovr" />}
+            label="Readiness"
+            value={<ReadinessBadge value={player.readinessScore} status={player.readinessStatus} size="sm" showLabel />}
+            detail={player.readinessIsProvisional ? "Provisional until competition and testoff data are both available" : "Competition, testoffs, and recent preparation"}
           />
           <StatTile
-            label="Total Points"
-            value={formatNumber(player.totalPoints)}
-            detail={
-              <span className="inline-flex items-center gap-2">
-                <DeltaIndicator delta={player.totalPointsDelta} metric="points" />
-                <span>{formatNumber(player.thirtyDayPoints)} in 30D</span>
-              </span>
-            }
+            label="Competition component"
+            value={player.competitionScore || "—"}
+            detail="60% of readiness when available"
           />
           <StatTile
-            label="Average Placement"
-            value={typeof player.avgPlacement === "number" ? player.avgPlacement.toFixed(1) : "N/A"}
-            detail={<DeltaIndicator delta={player.avgPlacementDelta} metric="placement" />}
+            label="Testoff component"
+            value={player.testoffScore || "—"}
+            detail="30% of readiness when available"
           />
-          <StatTile label="Potential" value={player.potentialRating.toFixed(1)} detail="Projected ceiling from medals, activity, and category ratings" />
-          <StatTile label="Medals" value={player.medalCount} detail="Detected from Duosmium medal fields or tournament cutoff" />
-          <StatTile label="Study Rating" value={player.studyRating ?? "N/A"} />
-          <StatTile label="Build Rating" value={player.buildRating ?? "N/A"} />
+          <StatTile label="Preparation component" value={player.preparationScore} detail={`${formatNumber(player.thirtyDayPoints)} approved points in 30 days`} />
+          <StatTile label="Approved practice" value={formatNumber(player.approvedPracticePoints)} detail="All time" />
+          <StatTile label="Pending practice" value={formatNumber(player.pendingPracticePoints)} detail="Awaiting officer review" />
+          <StatTile label="Competition points" value={formatNumber(player.competitionPoints)} detail="Recorded tournament results" />
           <StatTile
             label="Tournaments Attended"
             value={player.tournamentsAttended}
@@ -168,8 +160,8 @@ export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileP
                       <div className="font-black text-amber-200">{event.medals}</div>
                     </div>
                     <div>
-                      <div className="text-[11px] font-black uppercase text-zinc-500">Event OVR</div>
-                      <div className="font-black text-cyan-300">{event.eventOvr}</div>
+                      <div className="text-[11px] font-black uppercase text-zinc-500">Readiness</div>
+                      <div className="font-black text-cyan-300">{event.eventReadiness}</div>
                     </div>
                     <div>
                       <div className="text-[11px] font-black uppercase text-zinc-500">Best</div>
@@ -285,7 +277,7 @@ export function PlayerProfile({ player, mode = "page", onClose }: PlayerProfileP
   if (mode === "modal") {
     return (
       <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-label={`${player.name} profile`}>
-        <button type="button" onClick={onClose} className="fixed inset-0 h-full w-full bg-[rgba(18,35,28,0.45)] backdrop-blur-sm" aria-label="Close player profile" />
+        <button type="button" onClick={onClose} className="app-overlay fixed inset-0 h-full w-full backdrop-blur-sm" aria-label="Close player profile" />
         <div className="relative ml-auto min-h-full w-full max-w-6xl shadow-panel">
           {content}
         </div>

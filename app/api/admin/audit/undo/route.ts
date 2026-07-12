@@ -42,24 +42,35 @@ export async function POST(request: Request) {
 
   const entityTable = String(audit.entity_table ?? "");
   const entityId = String(audit.entity_id ?? "");
+  const undoAction = String(audit.undo_action ?? "");
+  const before = audit.payload_before && typeof audit.payload_before === "object" ? audit.payload_before as Record<string, unknown> : null;
+  const after = audit.payload_after && typeof audit.payload_after === "object" ? audit.payload_after as Record<string, unknown> : null;
 
-  if (entityTable === "tournaments" && entityId) {
+  if (undoAction === "tournament.delete" && entityId) {
     const { error } = await supabase.from("tournaments").delete().eq("id", Number(entityId));
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-  } else if (entityTable === "grind_points" && entityId) {
+    const createdEventIds = Array.isArray(after?.createdEventIds) ? after.createdEventIds.map(Number).filter(Number.isFinite) : [];
+    if (createdEventIds.length > 0) await supabase.from("events").delete().in("id", createdEventIds);
+  } else if (undoAction === "points.delete" && entityId) {
+    const { data: pointLog, error: loadError } = await supabase.from("grind_points").select("status").eq("id", Number(entityId)).maybeSingle();
+    if (loadError) return NextResponse.json({ ok: false, error: loadError.message }, { status: 500 });
+    if (!pointLog) return NextResponse.json({ ok: false, error: "This point submission no longer exists." }, { status: 409 });
+    if (pointLog.status !== "pending") return NextResponse.json({ ok: false, error: "Undo the officer review before removing this submission." }, { status: 409 });
+    const { error } = await supabase.from("grind_points").delete().eq("id", Number(entityId));
+    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  } else if ((undoAction === "points.unapprove" || undoAction === "points.restore_pending") && entityId && before) {
     const { error } = await supabase
       .from("grind_points")
       .update({
-        status: "pending",
-        is_approved: false,
-        approved_at: null,
-        approved_by: null,
-        notes: body.reason ?? "Restored by audit undo."
+        status: before.status ?? "pending",
+        is_approved: before.is_approved ?? false,
+        approved_at: before.approved_at ?? null,
+        approved_by: before.approved_by ?? null,
+        notes: before.notes ?? null
       })
       .eq("id", Number(entityId));
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-  } else if (entityTable === "students" && entityId && audit.payload_before) {
-    const before = audit.payload_before as Record<string, unknown>;
+  } else if (undoAction === "student.restore" && entityId && before) {
     const { error } = await supabase
       .from("students")
       .update({
@@ -70,12 +81,43 @@ export async function POST(request: Request) {
       })
       .eq("id", entityId);
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-  } else if (entityTable === "custom_point_categories" && entityId) {
-    const { error } = await supabase
-      .from("custom_point_categories")
-      .update({ is_active: false })
-      .eq("id", Number(entityId));
+  } else if ((undoAction === "category.restore" || undoAction === "category.deactivate") && entityId) {
+    const update = before
+      ? { name: before.name, default_points: before.default_points, max_points: before.max_points, is_active: before.is_active }
+      : { is_active: false };
+    const { error } = await supabase.from("custom_point_categories").update(update).eq("id", Number(entityId));
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  } else if (undoAction === "roster.restore" && before && Array.isArray(before.groups)) {
+    const { error } = await supabase.rpc("replace_team_memberships", { roster_groups: before.groups });
+    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  } else if (undoAction === "testoff.delete" && entityId) {
+    const { error } = await supabase.from("testoff_sessions").delete().eq("id", Number(entityId));
+    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  } else if (undoAction === "testoff.restore" && before) {
+    const session = before.session && typeof before.session === "object" ? before.session as Record<string, unknown> : null;
+    const results = Array.isArray(before.results) ? before.results as Array<Record<string, unknown>> : [];
+    if (!session) return NextResponse.json({ ok: false, error: "The deleted testoff snapshot is incomplete." }, { status: 409 });
+    const { error: sessionError } = await supabase.from("testoff_sessions").insert(session);
+    if (sessionError) return NextResponse.json({ ok: false, error: sessionError.message }, { status: 409 });
+    if (results.length > 0) {
+      const restoredResults = results.map((result) => ({
+        id: result.id,
+        session_id: result.session_id,
+        student_id: result.student_id,
+        raw_score: result.raw_score,
+        rank: result.rank,
+        notes: result.notes ?? null,
+        entered_by: result.entered_by ?? currentUser.id,
+        created_at: result.created_at
+      }));
+      const { error: resultError } = await supabase.from("testoff_results").insert(restoredResults);
+      if (resultError) {
+        await supabase.from("testoff_sessions").delete().eq("id", Number(session.id));
+        return NextResponse.json({ ok: false, error: resultError.message }, { status: 409 });
+      }
+    }
+  } else {
+    return NextResponse.json({ ok: false, error: `Undo is not implemented for ${undoAction || entityTable || "this action"}.` }, { status: 409 });
   }
 
   const now = new Date().toISOString();

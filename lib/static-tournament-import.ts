@@ -118,6 +118,8 @@ export function buildStaticTournamentPreview(
       const eventMedalCutoff = isMedal ? medalCutoff : 0;
       const medalPoints = isMedal ? calculateMedalPoints(rank, medalCutoff) : 0;
       performances.push({
+        rowKey: `csv-${performances.length + 1}`,
+        rawParticipantText: row.students || row.student || row.participants || row.names || row.members || "",
         studentName: studentNames.join(", "),
         studentNames,
         eventName: eventName.trim(),
@@ -145,6 +147,8 @@ export function buildStaticTournamentPreview(
     const eventMedalCutoff = isMedal ? medalCutoff : 0;
     const medalPoints = isMedal ? calculateMedalPoints(rankNumber, medalCutoff) : 0;
     performances.push({
+      rowKey: `manual-${performances.length + 1}`,
+      rawParticipantText: studentField,
       studentName: studentNames.join(", "),
       studentNames,
       eventName: eventName.trim(),
@@ -176,5 +180,7 @@ export function buildStaticTournamentPreview(
     performances,
     warnings,
     missingFields
+    ,blockers: missingFields,
+    canCommit: missingFields.length === 0
   };
 }

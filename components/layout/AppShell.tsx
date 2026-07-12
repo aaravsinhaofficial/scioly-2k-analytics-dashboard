@@ -13,6 +13,8 @@ import {
   LogOut,
   Menu,
   MoreHorizontal,
+  NotebookPen,
+  CircleHelp,
   Shield,
   Target,
   Users,
@@ -22,6 +24,8 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Student, UserRole } from "@/lib/types";
 import { cn, roleMeets } from "@/lib/utils";
 import { Avatar } from "@/components/Avatar";
+import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
 interface AppShellProps {
   currentUser: Student;
@@ -41,6 +45,7 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
     label: "Team workspace",
     items: [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, role: "viewer" },
+      { href: "/points", label: "Log practice", icon: NotebookPen, role: "viewer" },
       { href: "/teams", label: "Teams", icon: Users, role: "viewer" },
       { href: "/testoffs", label: "Testoff rankings", icon: ClipboardList, role: "viewer" },
     ],
@@ -66,7 +71,7 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
 
 const mobileItems = [
   { href: "/dashboard", label: "Home", icon: LayoutDashboard },
-  { href: "/teams", label: "Teams", icon: Users },
+  { href: "/points", label: "Log", icon: NotebookPen },
   { href: "/testoffs", label: "Testoffs", icon: ClipboardList },
   { href: "/resources", label: "Resources", icon: BookOpen },
 ];
@@ -85,13 +90,13 @@ function Navigation({
   onNavigate?: () => void;
 }) {
   return (
-    <nav className="space-y-6" aria-label="Main navigation">
+    <nav className="space-y-6" aria-label="Main navigation" data-tour="navigation">
       {navGroups.map((group) => {
         const items = group.items.filter((item) => roleMeets(role, item.role));
         if (items.length === 0) return null;
 
         return (
-          <div key={group.label}>
+          <div key={group.label} data-tour={group.label === "Administration" ? "administration" : undefined}>
             <div className="mb-2 px-3 text-xs font-semibold text-zinc-500">{group.label}</div>
             <div className="space-y-1">
               {items.map((item) => {
@@ -104,6 +109,7 @@ function Navigation({
                     href={item.href}
                     onClick={onNavigate}
                     aria-current={active ? "page" : undefined}
+                    data-tour={item.href === "/resources" ? "resources" : item.href === "/points" ? "points-nav" : undefined}
                     className={cn(
                       "flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium text-zinc-600 transition-colors hover:bg-court-elevated hover:text-white",
                       active && "bg-cyan-400/10 text-cyan-300"
@@ -184,6 +190,15 @@ export function AppShell({
       </div>
 
       <div className="border-t border-court-line p-3">
+        <ThemeToggle />
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new Event("scioly:start-tour"))}
+          className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-sm text-zinc-600 transition-colors hover:bg-court-elevated hover:text-white"
+        >
+          <CircleHelp className="h-[18px] w-[18px]" aria-hidden="true" />
+          Take a tour
+        </button>
         <Link
           href={`/profile/${currentUser.id}`}
           onClick={() => setMenuOpen(false)}
@@ -244,11 +259,13 @@ export function AppShell({
         {children}
       </main>
 
+      <OnboardingTour userId={currentUser.id} role={currentUser.role} />
+
       {menuOpen ? (
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation menu">
           <button
             type="button"
-            className="absolute inset-0 h-full w-full bg-[rgba(18,35,28,0.45)] backdrop-blur-sm"
+            className="app-overlay absolute inset-0 h-full w-full backdrop-blur-sm"
             onClick={() => setMenuOpen(false)}
             aria-label="Close navigation"
           />

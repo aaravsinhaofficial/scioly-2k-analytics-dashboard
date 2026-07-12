@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
-import { OvrBadge } from "@/components/OvrBadge";
 import { PageHeader } from "@/components/PageHeader";
 import { StatTile } from "@/components/StatTile";
 import { getCurrentUser } from "@/lib/data";
@@ -33,11 +32,11 @@ export default async function ResourceEventPage({
           label={`${event.category} event · Lead: ${event.lead}`}
           title={event.name}
           description={event.description}
-          actions={<OvrBadge value={event.resourceOvr} showTier />}
+          actions={<span className="rounded-md border border-court-line bg-court-panel px-3 py-2 text-sm font-semibold text-white">{event.coverageScore}% coverage</span>}
         />
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <StatTile label="Resource coverage" value={event.resourceOvr} detail={event.readiness} />
+          <StatTile label="Resource coverage" value={`${event.coverageScore}%`} detail={event.readiness} />
           <StatTile label="Resources" value={event.resources.length} detail="Notes and guides" />
           <StatTile label="Practice questions" value={event.questions.length} detail="Topic checks" />
           <StatTile label="Tests" value={event.tests.length} detail="Mini and full sets" />

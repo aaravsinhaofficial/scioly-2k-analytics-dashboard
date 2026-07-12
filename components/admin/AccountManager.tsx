@@ -79,7 +79,7 @@ export function AccountManager({ students }: AccountManagerProps) {
             <Shield className="h-4 w-4" aria-hidden="true" />
             Admin Only
           </div>
-          <h2 className="mt-1 text-2xl font-black italic uppercase text-white">Account & Profile Manager</h2>
+          <h2 className="mt-1 text-xl font-semibold text-white">Accounts and profiles</h2>
           <p className="mt-1 text-sm text-zinc-400">Edit role, grade, and listed events for any student account.</p>
         </div>
         {message ? <div className="rounded-md border border-court-line bg-court-elevated p-3 text-sm text-zinc-300">{message}</div> : null}
