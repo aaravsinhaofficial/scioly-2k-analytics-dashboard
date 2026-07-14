@@ -355,6 +355,38 @@ create trigger practice_question_test_guard
 before insert or update of test_id on public.practice_test_questions
 for each row execute function public.validate_practice_question_test();
 
+-- Serialize question mutations within a test so a reviewed batch cannot race
+-- another insert and reuse positions that were meant to append at the end.
+create or replace function public.lock_practice_question_test_mutation()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if tg_op = 'DELETE' then
+    perform pg_advisory_xact_lock(73124, old.test_id);
+    return old;
+  end if;
+
+  if tg_op = 'UPDATE' then
+    if old.test_id <> new.test_id then
+      perform pg_advisory_xact_lock(73124, least(old.test_id, new.test_id));
+      perform pg_advisory_xact_lock(73124, greatest(old.test_id, new.test_id));
+    else
+      perform pg_advisory_xact_lock(73124, new.test_id);
+    end if;
+  else
+    perform pg_advisory_xact_lock(73124, new.test_id);
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists practice_question_test_mutation_lock on public.practice_test_questions;
+create trigger practice_question_test_mutation_lock
+before insert or update or delete on public.practice_test_questions
+for each row execute function public.lock_practice_question_test_mutation();
+
 create table if not exists public.practice_test_attempts (
   id uuid primary key default gen_random_uuid(),
   test_id integer not null references public.library_items(id) on delete restrict,
@@ -575,11 +607,14 @@ alter table public.audit_logs add column if not exists reversed_by uuid referenc
 alter table public.audit_logs add column if not exists reversal_of integer references public.audit_logs(id);
 
 -- Insert a parsed practice-question batch and its undo records in one database
--- transaction. Any invalid row or audit failure aborts the entire RPC call.
+-- transaction. Any invalid row, stale preview, or audit failure aborts the
+-- entire RPC call.
+drop function if exists public.import_practice_question_batch(integer, uuid, jsonb, text);
 create or replace function public.import_practice_question_batch(
   target_test_id integer,
   actor_student_id uuid,
   question_rows jsonb,
+  expected_current_max integer,
   request_ip text default null
 )
 returns setof public.practice_test_questions
@@ -590,6 +625,7 @@ as $$
 declare
   question jsonb;
   inserted_question public.practice_test_questions;
+  locked_current_max integer;
 begin
   if target_test_id is null or target_test_id <= 0 then
     raise exception 'A valid practice test is required';
@@ -617,6 +653,15 @@ begin
      or jsonb_array_length(question_rows) > 500
   then
     raise exception 'Practice-question imports require between 1 and 500 rows';
+  end if;
+
+  perform pg_advisory_xact_lock(73124, target_test_id);
+  select coalesce(max(existing.position), -1)::integer
+  into locked_current_max
+  from public.practice_test_questions existing
+  where existing.test_id = target_test_id;
+  if expected_current_max is null or expected_current_max <> locked_current_max then
+    raise exception 'The test changed since this preview. Parse again before importing';
   end if;
 
   for question in
@@ -689,10 +734,10 @@ begin
 end;
 $$;
 
-revoke all on function public.import_practice_question_batch(integer, uuid, jsonb, text) from public;
-revoke all on function public.import_practice_question_batch(integer, uuid, jsonb, text) from anon;
-revoke all on function public.import_practice_question_batch(integer, uuid, jsonb, text) from authenticated;
-grant execute on function public.import_practice_question_batch(integer, uuid, jsonb, text) to service_role;
+revoke all on function public.import_practice_question_batch(integer, uuid, jsonb, integer, text) from public;
+revoke all on function public.import_practice_question_batch(integer, uuid, jsonb, integer, text) from anon;
+revoke all on function public.import_practice_question_batch(integer, uuid, jsonb, integer, text) from authenticated;
+grant execute on function public.import_practice_question_batch(integer, uuid, jsonb, integer, text) to service_role;
 
 create table if not exists public.system_settings (
   key text primary key,

@@ -100,7 +100,7 @@ Set `www.sciolytracker.com` as the primary production domain and redirect `sciol
 ## Operational workflow
 
 - Students submit practice logs; officers approve or reject them.
-- Officers import Tompkins tournament results from CSV, enter testoff sessions and scores, and bulk-import practice-test questions from parsed CSV files.
+- Officers import Tompkins tournament results from CSV, enter testoff sessions and scores, and bulk-import practice-test questions from public Google Sheets or parsed CSV files.
 - Members can add event-library resources; officers and admins retain moderation and removal controls.
 - Members can delete their own login and personal profile. Historical competition and team records remain attached to an anonymized placeholder.
 - Testoff rankings normalize raw score by the session maximum and weight.

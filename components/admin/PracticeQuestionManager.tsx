@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2, ClipboardCopy, Download, FileSpreadsheet, Loader2, Pencil, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
-import { useMemo, useState, useTransition, type ChangeEvent } from "react";
+import { useMemo, useRef, useState, useTransition, type ChangeEvent } from "react";
 import { PRACTICE_QUESTION_CSV_MAX_BYTES, PRACTICE_QUESTION_CSV_TEMPLATE } from "@/lib/practice-question-csv";
 import type { PracticeQuestionCsvImportResponse, PracticeQuestionCsvPreview, PracticeQuestionMutationResponse, PracticeQuestionType, PracticeTestQuestion } from "@/lib/practice-types";
 import { cn } from "@/lib/utils";
@@ -59,9 +59,13 @@ export function PracticeQuestionManager({ test, initialQuestions }: { test: Test
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [csvInput, setCsvInput] = useState("");
+  const [googleSheetUrl, setGoogleSheetUrl] = useState("");
   const [csvPreview, setCsvPreview] = useState<PracticeQuestionCsvPreview | null>(null);
+  const [previewCsv, setPreviewCsv] = useState<string | null>(null);
+  const [previewFingerprint, setPreviewFingerprint] = useState<string | null>(null);
   const [csvMessage, setCsvMessage] = useState<string | null>(null);
   const [csvError, setCsvError] = useState<string | null>(null);
+  const csvSourceRevision = useRef(0);
   const [isPending, startTransition] = useTransition();
   const [isCsvPending, startCsvTransition] = useTransition();
 
@@ -109,8 +113,12 @@ export function PracticeQuestionManager({ test, initialQuestions }: { test: Test
   }
 
   function updateCsvInput(value: string, nextMessage: string | null = null) {
+    csvSourceRevision.current += 1;
     setCsvInput(value);
+    setGoogleSheetUrl("");
     setCsvPreview(null);
+    setPreviewCsv(null);
+    setPreviewFingerprint(null);
     setCsvMessage(nextMessage);
     setCsvError(null);
   }
@@ -119,40 +127,95 @@ export function PracticeQuestionManager({ test, initialQuestions }: { test: Test
     const input = event.currentTarget;
     const file = input.files?.[0];
     if (!file) return;
+    const requestRevision = csvSourceRevision.current + 1;
+    csvSourceRevision.current = requestRevision;
+    setCsvInput("");
+    setGoogleSheetUrl("");
+    setCsvPreview(null);
+    setPreviewCsv(null);
+    setPreviewFingerprint(null);
+    setCsvMessage(null);
+    setCsvError(null);
     if (file.size > PRACTICE_QUESTION_CSV_MAX_BYTES) {
       setCsvError("The CSV is too large. The limit is 512 KB.");
-      setCsvPreview(null);
       input.value = "";
       return;
     }
     void file.text()
-      .then((text) => updateCsvInput(text, `${file.name} loaded. Select Parse preview to validate it.`))
-      .catch(() => setCsvError("Could not read that CSV file."))
+      .then((text) => {
+        if (csvSourceRevision.current !== requestRevision) return;
+        setCsvInput(text);
+        setCsvMessage(`${file.name} loaded. Select Parse preview to validate it.`);
+      })
+      .catch(() => {
+        if (csvSourceRevision.current === requestRevision) setCsvError("Could not read that CSV file.");
+      })
       .finally(() => { input.value = ""; });
   }
 
-  function parseCsv(commit = false) {
+  function updateGoogleSheetUrl(value: string) {
+    csvSourceRevision.current += 1;
+    setGoogleSheetUrl(value);
+    setCsvInput("");
+    setCsvPreview(null);
+    setPreviewCsv(null);
+    setPreviewFingerprint(null);
     setCsvMessage(null);
     setCsvError(null);
+  }
+
+  function parseCsv(commit = false, sheetUrl = "") {
+    const requestRevision = csvSourceRevision.current;
+    const frozenCsv = commit ? previewCsv : null;
+    const fingerprint = commit ? previewFingerprint : null;
+    const sourceCsv = frozenCsv ?? csvInput;
+    setCsvMessage(null);
+    setCsvError(null);
+    if (!commit) {
+      setCsvPreview(null);
+      setPreviewCsv(null);
+      setPreviewFingerprint(null);
+    }
     startCsvTransition(async () => {
       try {
         const response = await fetch("/api/admin/practice-questions/import", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ testId: test.id, rawCsv: csvInput, commit }),
+          body: JSON.stringify(sheetUrl
+            ? { testId: test.id, googleSheetUrl: sheetUrl, commit: false }
+            : { testId: test.id, rawCsv: sourceCsv, previewFingerprint: fingerprint, commit }),
         });
         const payload = await response.json().catch(() => null) as PracticeQuestionCsvImportResponse | null;
+        if (csvSourceRevision.current !== requestRevision) return;
         if (payload?.preview) setCsvPreview(payload.preview);
+        if (commit && response.status === 409) {
+          setPreviewCsv(null);
+          setPreviewFingerprint(null);
+        }
         if (!response.ok || !payload?.ok) throw new Error(payload?.error ?? "Could not parse the practice-question CSV.");
+        if (!commit) {
+          const resolvedCsv = payload.resolvedCsv ?? sourceCsv;
+          if (typeof payload.resolvedCsv === "string") {
+            setCsvInput(payload.resolvedCsv);
+            setGoogleSheetUrl("");
+          }
+          setPreviewCsv(resolvedCsv);
+          setPreviewFingerprint(payload.previewFingerprint ?? null);
+        }
         setCsvMessage(payload.message ?? (commit ? "Questions imported." : "Preview ready."));
         if (commit) {
           const imported = payload.questions ?? [];
           setQuestions((current) => [...current, ...imported]);
           setForm((current) => current.id ? current : blank(Math.max(nextPosition, ...imported.map((question) => question.position + 1))));
           setCsvInput("");
+          setGoogleSheetUrl("");
           setCsvPreview(null);
+          setPreviewCsv(null);
+          setPreviewFingerprint(null);
+          csvSourceRevision.current += 1;
         }
       } catch (caught) {
+        if (csvSourceRevision.current !== requestRevision) return;
         setCsvError(caught instanceof Error ? caught.message : "Could not import the practice-question CSV.");
       }
     });
@@ -191,36 +254,68 @@ export function PracticeQuestionManager({ test, initialQuestions }: { test: Test
       <section className="min-w-0 overflow-hidden rounded-md border border-court-line bg-court-panel">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-court-line p-4 sm:p-5">
           <div>
-            <div className="flex items-center gap-2 text-sm font-medium text-cyan-300"><FileSpreadsheet className="h-4 w-4" /> CSV question import</div>
+            <div className="flex items-center gap-2 text-sm font-medium text-cyan-300"><FileSpreadsheet className="h-4 w-4" /> Spreadsheet question import</div>
             <h2 className="mt-1 text-xl font-semibold text-white">Add a full test from a spreadsheet</h2>
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-zinc-500">Load a CSV or paste its contents, then explicitly parse and review every row. Imports are all-or-nothing: any row error blocks the entire batch.</p>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-zinc-500">Load a public Google Sheet, upload a CSV, or paste CSV content, then review every parsed row. Imports are all-or-nothing: any row error blocks the entire batch.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => void copyCsvTemplate()} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-court-line px-3 text-xs font-medium text-zinc-600 hover:border-cyan-400 hover:text-white"><ClipboardCopy className="h-3.5 w-3.5" /> Copy sample</button>
-            <button type="button" onClick={downloadCsvTemplate} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-court-line px-3 text-xs font-medium text-zinc-600 hover:border-cyan-400 hover:text-white"><Download className="h-3.5 w-3.5" /> Download sample</button>
+            <button type="button" onClick={() => void copyCsvTemplate()} disabled={isCsvPending} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-court-line px-3 text-xs font-medium text-zinc-600 hover:border-cyan-400 hover:text-white disabled:opacity-60"><ClipboardCopy className="h-3.5 w-3.5" /> Copy sample</button>
+            <button type="button" onClick={downloadCsvTemplate} disabled={isCsvPending} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-court-line px-3 text-xs font-medium text-zinc-600 hover:border-cyan-400 hover:text-white disabled:opacity-60"><Download className="h-3.5 w-3.5" /> Download sample</button>
           </div>
         </div>
 
         <div className="grid min-w-0 gap-5 p-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,.9fr)] sm:p-5">
           <div className="min-w-0 space-y-3">
+            <div className="rounded-md border border-court-line bg-court-elevated p-3">
+              <label htmlFor="google-sheet-url" className="text-xs font-medium uppercase tracking-wide text-zinc-500">Google Sheets link</label>
+              <div className="mt-2 grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <input
+                  id="google-sheet-url"
+                  type="url"
+                  inputMode="url"
+                  autoComplete="off"
+                  value={googleSheetUrl}
+                  onChange={(event) => updateGoogleSheetUrl(event.target.value)}
+                  disabled={isCsvPending}
+                  placeholder="https://docs.google.com/spreadsheets/d/…/edit#gid=0"
+                  aria-describedby="google-sheet-help"
+                  className="h-11 min-w-0 rounded-md border border-court-control bg-court-panel px-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-cyan-400"
+                />
+                <button
+                  type="button"
+                  onClick={() => parseCsv(false, googleSheetUrl.trim())}
+                  disabled={isCsvPending || !googleSheetUrl.trim()}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-cyan-400/50 px-4 text-sm font-semibold text-cyan-200 hover:bg-cyan-400 hover:text-black disabled:border-court-line disabled:bg-court-panel disabled:text-zinc-500"
+                >
+                  {isCsvPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+                  Load &amp; parse Sheet
+                </button>
+              </div>
+              <p id="google-sheet-help" className="mt-2 text-xs leading-5 text-zinc-500">
+                In Google Sheets, set General access to Anyone with the link — Viewer, then copy the URL while the question tab is selected. A fixed CSV snapshot is loaded for review.
+              </p>
+            </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">CSV source</p>
-              <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-court-control px-3 text-xs font-medium text-cyan-300 hover:border-cyan-400"><FileSpreadsheet className="h-3.5 w-3.5" /> Load .csv<input type="file" accept=".csv,text/csv" onChange={loadCsvFile} className="sr-only" /></label>
+              <label htmlFor="practice-question-csv" className="text-xs font-medium uppercase tracking-wide text-zinc-500">CSV source or loaded snapshot</label>
+              <label className={cn("inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-court-control px-3 text-xs font-medium text-cyan-300 hover:border-cyan-400", isCsvPending && "pointer-events-none opacity-60")}><FileSpreadsheet className="h-3.5 w-3.5" /> Load .csv<input type="file" accept=".csv,text/csv" onChange={loadCsvFile} disabled={isCsvPending} className="sr-only" /></label>
             </div>
             <textarea
+              id="practice-question-csv"
               rows={13}
               spellCheck={false}
               value={csvInput}
               onChange={(event) => updateCsvInput(event.target.value)}
+              disabled={isCsvPending}
+              aria-describedby="practice-question-csv-help"
               placeholder="Type,Question,Option A,Option B,Option C,Option D,Option E,Option F,Correct Answer,Model Answer,Explanation,Points,Order"
               className="w-full resize-y rounded-md border border-court-control bg-court-elevated p-3 font-mono text-xs leading-5 text-white outline-none placeholder:text-zinc-500 focus:border-cyan-400"
             />
-            <p className="text-xs leading-5 text-zinc-500">Correct Answer accepts A–F, 1–6, or the exact choice text. Leave Order blank to append the question after the current maximum. Maximum 500 rows / 512 KB.</p>
+            <p id="practice-question-csv-help" className="text-xs leading-5 text-zinc-500">Correct Answer accepts A–F, 1–6, or the exact choice text. Leave Order blank to append the question after the current maximum. Maximum 500 rows / 512 KB.</p>
             <div className="flex flex-col gap-2 sm:flex-row">
               <button type="button" onClick={() => parseCsv(false)} disabled={isCsvPending || !csvInput.trim()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200 disabled:border disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500">{isCsvPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />} Parse preview</button>
-              <button type="button" onClick={() => parseCsv(true)} disabled={isCsvPending || !csvPreview?.canImport} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-cyan-400/50 px-4 text-sm font-semibold text-cyan-200 hover:bg-cyan-400 hover:text-black disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500"><Upload className="h-4 w-4" /> Import all questions</button>
+              <button type="button" onClick={() => parseCsv(true)} disabled={isCsvPending || !csvPreview?.canImport || !previewCsv || !previewFingerprint} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-cyan-400/50 px-4 text-sm font-semibold text-cyan-200 hover:bg-cyan-400 hover:text-black disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500"><Upload className="h-4 w-4" /> Import all questions</button>
             </div>
-            {csvMessage ? <p role="status" className="rounded-md border border-emerald-300/30 bg-emerald-300/10 p-3 text-sm text-emerald-300">{csvMessage}</p> : null}
+            {csvMessage ? <p role="status" className={cn("rounded-md border p-3 text-sm", csvPreview && !csvPreview.canImport ? "border-amber-300/30 bg-amber-300/10 text-amber-200" : "border-emerald-300/30 bg-emerald-300/10 text-emerald-300")}>{csvMessage}</p> : null}
             {csvError ? <p role="alert" className="rounded-md border border-red-300/30 bg-red-300/10 p-3 text-sm text-red-300">{csvError}</p> : null}
           </div>
 

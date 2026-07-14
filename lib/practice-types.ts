@@ -107,6 +107,10 @@ export interface PracticeQuestionCsvPreview {
 export interface PracticeQuestionCsvImportResponse {
   ok: boolean;
   preview?: PracticeQuestionCsvPreview;
+  /** Frozen CSV returned after resolving a public Google Sheets link. */
+  resolvedCsv?: string;
+  /** Binds a commit to the exact CSV and resolved preview the officer reviewed. */
+  previewFingerprint?: string;
   questions?: PracticeTestQuestion[];
   message?: string;
   error?: string;

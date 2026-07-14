@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getAuthenticatedStudent } from "@/lib/auth";
 import { getCurrentDemoUser } from "@/lib/analytics";
+import { fetchPublicGoogleSheetCsv, GoogleSheetsCsvError } from "@/lib/google-sheets-csv";
 import {
   parsePracticeQuestionCsv,
   PRACTICE_QUESTION_CSV_MAX_BYTES,
@@ -21,8 +23,12 @@ export const dynamic = "force-dynamic";
 interface ImportRequest {
   testId?: number;
   rawCsv?: string;
+  googleSheetUrl?: string;
+  previewFingerprint?: string;
   commit?: boolean;
 }
+
+const IMPORT_REQUEST_MAX_BYTES = 4 * 1024 * 1024;
 
 function json(
   body: PracticeQuestionCsvImportResponse,
@@ -45,6 +51,35 @@ async function officer() {
 
 function csvByteLength(value: string) {
   return new TextEncoder().encode(value).byteLength;
+}
+
+async function readImportRequest(request: Request) {
+  const contentLength = Number(request.headers.get("content-length"));
+  if (Number.isFinite(contentLength) && contentLength > IMPORT_REQUEST_MAX_BYTES) return null;
+  if (!request.body) return "";
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let byteLength = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    byteLength += value.byteLength;
+    if (byteLength > IMPORT_REQUEST_MAX_BYTES) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+
+  const bytes = new Uint8Array(byteLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
 }
 
 function resolvePositions(
@@ -82,20 +117,42 @@ function previewFrom(
   };
 }
 
+function fingerprintPreview(testId: number, rawCsv: string, preview: PracticeQuestionCsvPreview) {
+  return createHash("sha256")
+    .update(JSON.stringify({ testId, rawCsv, preview }))
+    .digest("base64url");
+}
+
 export async function POST(request: Request) {
   const auth = await officer();
   if (auth.response) return auth.response;
 
-  const body = await request.json().catch(() => null) as ImportRequest | null;
+  const requestBody = await readImportRequest(request);
+  if (requestBody === null) {
+    return json({ ok: false, error: "The import request is too large." }, 413);
+  }
+  let body: ImportRequest | null = null;
+  try {
+    body = JSON.parse(requestBody) as ImportRequest;
+  } catch {
+    return json({ ok: false, error: "The import request is not valid JSON." }, 400);
+  }
   const testId = Number(body?.testId);
-  const rawCsv = typeof body?.rawCsv === "string" ? body.rawCsv : "";
+  const suppliedRawCsv = typeof body?.rawCsv === "string" ? body.rawCsv : "";
+  const googleSheetUrl = typeof body?.googleSheetUrl === "string" ? body.googleSheetUrl.trim() : "";
+  const suppliedFingerprint = typeof body?.previewFingerprint === "string" ? body.previewFingerprint : "";
   const commit = body?.commit === true;
   if (!Number.isInteger(testId) || testId <= 0) {
     return json({ ok: false, error: "Choose a valid practice test." }, 400);
   }
-  if (!rawCsv.trim()) return json({ ok: false, error: "Paste or load a practice-question CSV first." }, 400);
-  if (csvByteLength(rawCsv) > PRACTICE_QUESTION_CSV_MAX_BYTES) {
-    return json({ ok: false, error: "The CSV is too large. The limit is 512 KB." }, 413);
+  if (suppliedRawCsv.trim() && googleSheetUrl) {
+    return json({ ok: false, error: "Choose either CSV content or a Google Sheets link, not both." }, 400);
+  }
+  if (!suppliedRawCsv.trim() && !googleSheetUrl) {
+    return json({ ok: false, error: "Paste or load CSV content, or enter a public Google Sheets link." }, 400);
+  }
+  if (commit && googleSheetUrl) {
+    return json({ ok: false, error: "Load and review the Google Sheet before importing its frozen CSV snapshot." }, 400);
   }
 
   const supabase = getSupabaseAdmin();
@@ -117,18 +174,48 @@ export async function POST(request: Request) {
     currentMax = maxResult.data ? Number(maxResult.data.position) : -1;
   }
 
+  let rawCsv = suppliedRawCsv;
+  let resolvedCsv: string | undefined;
+  if (googleSheetUrl) {
+    try {
+      const googleSheet = await fetchPublicGoogleSheetCsv(googleSheetUrl, {
+        maxBytes: PRACTICE_QUESTION_CSV_MAX_BYTES,
+      });
+      rawCsv = googleSheet.rawCsv;
+      resolvedCsv = googleSheet.rawCsv;
+    } catch (error) {
+      if (error instanceof GoogleSheetsCsvError) {
+        return json({ ok: false, error: error.message }, error.status);
+      }
+      return json({ ok: false, error: "Google Sheets could not be reached. Try again shortly." }, 502);
+    }
+  }
+  if (csvByteLength(rawCsv) > PRACTICE_QUESTION_CSV_MAX_BYTES) {
+    return json({ ok: false, error: "The CSV is too large. The limit is 512 KB." }, 413);
+  }
+
   // Parse every request, including commits, so a client cannot bypass the CSV
   // validation by changing a previously previewed payload.
   const parsed = parsePracticeQuestionCsv(rawCsv, { maxRows: PRACTICE_QUESTION_CSV_MAX_ROWS });
   const preview = previewFrom(parsed, currentMax);
+  const previewFingerprint = fingerprintPreview(testId, rawCsv, preview);
   if (!commit) {
     return json({
       ok: true,
       preview,
+      resolvedCsv,
+      previewFingerprint,
       message: preview.canImport
-        ? `${preview.rowCount} question${preview.rowCount === 1 ? "" : "s"} parsed. Review the preview, then import the entire batch.`
+        ? `${preview.rowCount} question${preview.rowCount === 1 ? "" : "s"} ${googleSheetUrl ? "loaded from Google Sheets and " : ""}parsed. Review the preview, then import the entire batch.`
         : `Fix ${preview.errors.length} validation error${preview.errors.length === 1 ? "" : "s"} before importing.`,
     });
+  }
+  if (!suppliedFingerprint || suppliedFingerprint !== previewFingerprint) {
+    return json({
+      ok: false,
+      preview,
+      error: "The CSV or test changed since this preview. Parse it again before importing. No questions were added.",
+    }, 409);
   }
   if (!preview.canImport) {
     return json({
@@ -179,9 +266,17 @@ export async function POST(request: Request) {
     target_test_id: testId,
     actor_student_id: auth.currentUser.id,
     question_rows: questionRows,
+    expected_current_max: currentMax,
     request_ip: ipAddress,
   });
   const importedRows = Array.isArray(data) ? data as Array<Record<string, unknown>> : null;
+  if (error?.message.includes("changed since this preview")) {
+    return json({
+      ok: false,
+      preview,
+      error: "The test changed since this preview. Parse it again before importing. No questions were added.",
+    }, 409);
+  }
   if (error || !importedRows || importedRows.length !== questionRows.length) {
     return json({
       ok: false,
