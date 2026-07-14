@@ -20,6 +20,7 @@ create table if not exists public.students (
   is_active boolean not null default true,
   archived_at timestamptz,
   archived_by uuid references public.students(id),
+  account_deleted_at timestamptz,
   prev_ovr numeric(5, 2) not null default 60.00,
   prev_avg_placement numeric(6, 2),
   last_snapshot_date timestamptz,
@@ -33,6 +34,7 @@ alter table public.students add column if not exists profile_events text[] not n
 alter table public.students add column if not exists is_active boolean not null default true;
 alter table public.students add column if not exists archived_at timestamptz;
 alter table public.students add column if not exists archived_by uuid references public.students(id);
+alter table public.students add column if not exists account_deleted_at timestamptz;
 update public.students set is_active = true where is_active is null;
 alter table public.students alter column is_active set default true;
 alter table public.students alter column is_active set not null;
@@ -68,6 +70,15 @@ create unique index if not exists students_email_case_insensitive
 on public.students (lower(btrim(email)));
 create index if not exists students_active_name_idx
 on public.students (is_active, name);
+
+create table if not exists public.account_deletion_operations (
+  student_id uuid primary key references public.students(id) on delete cascade,
+  auth_user_id uuid not null unique references auth.users(id) on delete cascade,
+  snapshot jsonb not null,
+  prepared_at timestamptz not null default now()
+);
+revoke all on table public.account_deletion_operations from public, anon, authenticated;
+grant select, insert, update, delete on table public.account_deletion_operations to service_role;
 
 create table if not exists public.teams (
   id uuid primary key default gen_random_uuid(),
@@ -563,6 +574,126 @@ alter table public.audit_logs add column if not exists reversed_at timestamptz;
 alter table public.audit_logs add column if not exists reversed_by uuid references public.students(id);
 alter table public.audit_logs add column if not exists reversal_of integer references public.audit_logs(id);
 
+-- Insert a parsed practice-question batch and its undo records in one database
+-- transaction. Any invalid row or audit failure aborts the entire RPC call.
+create or replace function public.import_practice_question_batch(
+  target_test_id integer,
+  actor_student_id uuid,
+  question_rows jsonb,
+  request_ip text default null
+)
+returns setof public.practice_test_questions
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  question jsonb;
+  inserted_question public.practice_test_questions;
+begin
+  if target_test_id is null or target_test_id <= 0 then
+    raise exception 'A valid practice test is required';
+  end if;
+  if actor_student_id is null or not exists (
+    select 1
+    from public.students actor
+    where actor.id = actor_student_id
+      and actor.is_active = true
+      and actor.role in ('officer', 'admin')
+  ) then
+    raise exception 'An active officer or admin is required';
+  end if;
+  if not exists (
+    select 1
+    from public.library_items item
+    where item.id = target_test_id
+      and item.kind = 'test'
+  ) then
+    raise exception 'That practice test no longer exists';
+  end if;
+  if question_rows is null
+     or jsonb_typeof(question_rows) <> 'array'
+     or jsonb_array_length(question_rows) < 1
+     or jsonb_array_length(question_rows) > 500
+  then
+    raise exception 'Practice-question imports require between 1 and 500 rows';
+  end if;
+
+  for question in
+    select value
+    from jsonb_array_elements(question_rows)
+  loop
+    if jsonb_typeof(question) <> 'object' then
+      raise exception 'Each practice-question row must be an object';
+    end if;
+
+    insert into public.practice_test_questions (
+      test_id,
+      question_type,
+      prompt,
+      options,
+      correct_option,
+      model_answer,
+      explanation,
+      points,
+      position,
+      is_active,
+      created_by,
+      updated_by
+    )
+    values (
+      target_test_id,
+      question ->> 'question_type',
+      question ->> 'prompt',
+      coalesce(question -> 'options', '[]'::jsonb),
+      nullif(question ->> 'correct_option', '')::integer,
+      nullif(question ->> 'model_answer', ''),
+      nullif(question ->> 'explanation', ''),
+      (question ->> 'points')::integer,
+      (question ->> 'position')::integer,
+      true,
+      actor_student_id,
+      actor_student_id
+    )
+    returning * into inserted_question;
+
+    insert into public.audit_logs (
+      actor_id,
+      action,
+      target,
+      reason,
+      ip_address,
+      entity_table,
+      entity_id,
+      payload_before,
+      payload_after,
+      undo_action,
+      is_reversible
+    )
+    values (
+      actor_student_id,
+      'practice_question.import',
+      inserted_question.prompt,
+      'Officer CSV interactive practice question import',
+      nullif(btrim(request_ip), '')::inet,
+      'practice_test_questions',
+      inserted_question.id::text,
+      null,
+      to_jsonb(inserted_question),
+      'practice_question.remove',
+      true
+    );
+
+    return next inserted_question;
+  end loop;
+end;
+$$;
+
+revoke all on function public.import_practice_question_batch(integer, uuid, jsonb, text) from public;
+revoke all on function public.import_practice_question_batch(integer, uuid, jsonb, text) from anon;
+revoke all on function public.import_practice_question_batch(integer, uuid, jsonb, text) from authenticated;
+grant execute on function public.import_practice_question_batch(integer, uuid, jsonb, text) to service_role;
+
 create table if not exists public.system_settings (
   key text primary key,
   value jsonb not null,
@@ -761,6 +892,9 @@ begin
   if actor_student_id = target_student_id and next_is_active = false then
     raise exception 'You cannot archive your own account';
   end if;
+  if current_profile.account_deleted_at is not null then
+    raise exception 'Permanently deleted profiles cannot be restored or edited';
+  end if;
   if next_role not in ('viewer', 'officer', 'admin') then
     raise exception 'Invalid account role';
   end if;
@@ -776,6 +910,7 @@ begin
        where other.id <> target_student_id
          and other.role = 'admin'
          and other.is_active = true
+         and other.auth_user_id is not null
      )
   then
     raise exception 'Add another active admin before changing the last admin';
@@ -801,6 +936,280 @@ revoke all on function public.admin_set_student_profile(uuid, uuid, jsonb, text,
 revoke all on function public.admin_set_student_profile(uuid, uuid, jsonb, text, text, integer, text, text[], boolean, timestamptz, uuid) from anon;
 revoke all on function public.admin_set_student_profile(uuid, uuid, jsonb, text, text, integer, text, text[], boolean, timestamptz, uuid) from authenticated;
 grant execute on function public.admin_set_student_profile(uuid, uuid, jsonb, text, text, integer, text, text[], boolean, timestamptz, uuid) to service_role;
+
+create or replace function public.prepare_self_account_deletion(
+  target_auth_user_id uuid,
+  confirmation_email text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_profile public.students;
+  previous_memberships jsonb;
+  deletion_email text;
+  deletion_snapshot jsonb;
+  prepared_timestamp timestamptz := clock_timestamp();
+begin
+  if target_auth_user_id is null or nullif(btrim(confirmation_email), '') is null then
+    raise exception 'Email confirmation is required';
+  end if;
+
+  -- Use the same lock as administrator role/archive changes so two concurrent
+  -- requests can never remove the final active administrator.
+  perform pg_advisory_xact_lock(hashtextextended('scioly-active-admin-guard', 0));
+
+  select *
+  into current_profile
+  from public.students
+  where auth_user_id = target_auth_user_id
+  for update;
+
+  if not found then
+    raise exception 'Active account profile not found';
+  end if;
+  if current_profile.is_active = false or current_profile.account_deleted_at is not null then
+    raise exception 'This account is already archived or deleted';
+  end if;
+  if lower(btrim(current_profile.email)) <> lower(btrim(confirmation_email)) then
+    raise exception 'Confirmation email does not match the signed-in account';
+  end if;
+  if not exists (
+    select 1
+    from auth.users auth_user
+    where auth_user.id = target_auth_user_id
+      and lower(btrim(auth_user.email)) = lower(btrim(confirmation_email))
+  ) then
+    raise exception 'Confirmation email does not match the signed-in account';
+  end if;
+  if current_profile.role = 'admin'
+     and not exists (
+       select 1
+       from public.students other
+       where other.id <> current_profile.id
+         and other.role = 'admin'
+         and other.is_active = true
+         and other.auth_user_id is not null
+     )
+  then
+    raise exception 'Add another active admin before deleting the last admin account';
+  end if;
+
+  select coalesce(
+    jsonb_agg(to_jsonb(membership) order by membership.created_at),
+    '[]'::jsonb
+  )
+  into previous_memberships
+  from public.team_members membership
+  where membership.student_id = current_profile.id;
+
+  deletion_email := concat(
+    'deleted+',
+    replace(current_profile.id::text, '-', ''),
+    '@deleted.invalid'
+  );
+
+  deletion_snapshot := jsonb_build_object(
+    'student', to_jsonb(current_profile),
+    'memberships', previous_memberships,
+    'deletion_email', deletion_email,
+    'prepared_at', prepared_timestamp
+  );
+
+  -- Preparation is intentionally non-destructive. The auth.users deletion
+  -- trigger below applies anonymization and membership removal inside the same
+  -- transaction as the Auth hard delete, so an Auth failure rolls back both.
+  insert into public.account_deletion_operations (
+    student_id,
+    auth_user_id,
+    snapshot,
+    prepared_at
+  )
+  values (
+    current_profile.id,
+    target_auth_user_id,
+    deletion_snapshot,
+    prepared_timestamp
+  )
+  on conflict (student_id) do update
+  set auth_user_id = excluded.auth_user_id,
+      snapshot = excluded.snapshot,
+      prepared_at = excluded.prepared_at;
+
+  return deletion_snapshot;
+end;
+$$;
+
+revoke all on function public.prepare_self_account_deletion(uuid, text) from public;
+revoke all on function public.prepare_self_account_deletion(uuid, text) from anon;
+revoke all on function public.prepare_self_account_deletion(uuid, text) from authenticated;
+grant execute on function public.prepare_self_account_deletion(uuid, text) to service_role;
+
+create or replace function public.handle_auth_user_account_deletion()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  pending_operation public.account_deletion_operations;
+  current_profile public.students;
+  deletion_email text;
+  deletion_timestamp timestamptz := clock_timestamp();
+begin
+  -- Auth users deleted outside this app keep the existing foreign-key
+  -- behavior. Only a service-role-prepared self-deletion is anonymized here.
+  perform pg_advisory_xact_lock(hashtextextended('scioly-active-admin-guard', 0));
+
+  select *
+  into pending_operation
+  from public.account_deletion_operations
+  where auth_user_id = old.id
+  for update;
+
+  if not found then
+    return old;
+  end if;
+
+  select *
+  into current_profile
+  from public.students
+  where id = pending_operation.student_id
+    and auth_user_id = old.id
+  for update;
+
+  if not found then
+    raise exception 'Prepared account profile no longer matches the Auth user';
+  end if;
+  if current_profile.role = 'admin'
+     and current_profile.is_active = true
+     and not exists (
+       select 1
+       from public.students other
+       where other.id <> current_profile.id
+         and other.role = 'admin'
+         and other.is_active = true
+         and other.auth_user_id is not null
+     )
+  then
+    raise exception 'Add another active admin before deleting the last admin account';
+  end if;
+
+  deletion_email := pending_operation.snapshot ->> 'deletion_email';
+  if nullif(deletion_email, '') is null then
+    raise exception 'Prepared account deletion snapshot is invalid';
+  end if;
+
+  update public.students
+  set name = 'Deleted account',
+      email = deletion_email,
+      role = 'viewer',
+      grade = null,
+      profile_picture_url = null,
+      profile_events = '{}'::text[],
+      is_active = false,
+      archived_at = deletion_timestamp,
+      archived_by = current_profile.id,
+      account_deleted_at = deletion_timestamp
+  where id = current_profile.id;
+
+  delete from public.team_members
+  where student_id = current_profile.id;
+
+  return old;
+end;
+$$;
+
+revoke all on function public.handle_auth_user_account_deletion() from public;
+revoke all on function public.handle_auth_user_account_deletion() from anon;
+revoke all on function public.handle_auth_user_account_deletion() from authenticated;
+
+drop trigger if exists on_auth_user_account_deletion on auth.users;
+create trigger on_auth_user_account_deletion
+before delete on auth.users
+for each row execute function public.handle_auth_user_account_deletion();
+
+create or replace function public.rollback_self_account_deletion(
+  target_student_id uuid,
+  target_auth_user_id uuid,
+  deletion_snapshot jsonb
+)
+returns public.students
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_profile public.students;
+  stored_snapshot jsonb;
+  snapshot_student jsonb;
+begin
+  if deletion_snapshot is null or jsonb_typeof(deletion_snapshot) <> 'object' then
+    raise exception 'Deletion rollback snapshot is invalid';
+  end if;
+
+  snapshot_student := deletion_snapshot -> 'student';
+  if snapshot_student is null
+     or jsonb_typeof(snapshot_student) <> 'object'
+     or nullif(snapshot_student ->> 'id', '')::uuid is distinct from target_student_id
+     or nullif(snapshot_student ->> 'auth_user_id', '')::uuid is distinct from target_auth_user_id
+  then
+    raise exception 'Deletion rollback snapshot is invalid';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended('scioly-active-admin-guard', 0));
+
+  select snapshot
+  into stored_snapshot
+  from public.account_deletion_operations
+  where student_id = target_student_id
+    and auth_user_id = target_auth_user_id
+  for update;
+
+  if not found then
+    if not exists (select 1 from auth.users where id = target_auth_user_id) then
+      raise exception 'Auth account no longer exists; deletion cannot be rolled back';
+    end if;
+    raise exception 'Pending account deletion was not found';
+  end if;
+  if stored_snapshot is distinct from deletion_snapshot then
+    raise exception 'Deletion rollback snapshot does not match the pending operation';
+  end if;
+  if not exists (select 1 from auth.users where id = target_auth_user_id) then
+    raise exception 'Auth account no longer exists; deletion cannot be rolled back';
+  end if;
+
+  select *
+  into current_profile
+  from public.students
+  where id = target_student_id
+    and auth_user_id = target_auth_user_id
+  for update;
+
+  if not found then
+    raise exception 'Account profile no longer matches the Auth user';
+  end if;
+  if current_profile.account_deleted_at is not null then
+    raise exception 'Account profile changed despite the failed Auth transaction';
+  end if;
+
+  -- The BEFORE DELETE trigger is part of the Auth delete transaction, so all
+  -- profile/membership changes have already rolled back when Auth reports a
+  -- failure. Removing this durable marker completes the rollback.
+  delete from public.account_deletion_operations
+  where student_id = target_student_id
+    and auth_user_id = target_auth_user_id;
+
+  return current_profile;
+end;
+$$;
+
+revoke all on function public.rollback_self_account_deletion(uuid, uuid, jsonb) from public;
+revoke all on function public.rollback_self_account_deletion(uuid, uuid, jsonb) from anon;
+revoke all on function public.rollback_self_account_deletion(uuid, uuid, jsonb) from authenticated;
+grant execute on function public.rollback_self_account_deletion(uuid, uuid, jsonb) to service_role;
 
 create or replace function public.prepare_grind_point_submission()
 returns trigger
@@ -1353,6 +1762,7 @@ after update of max_score, weight on public.testoff_sessions
 for each row execute function public.refresh_testoff_ranking_scores();
 
 alter table public.students enable row level security;
+alter table public.account_deletion_operations enable row level security;
 alter table public.teams enable row level security;
 alter table public.team_members enable row level security;
 alter table public.events enable row level security;
@@ -1377,11 +1787,9 @@ to authenticated
 using (id = public.current_student_id() or public.is_officer_or_admin());
 
 drop policy if exists "students_admin_write" on public.students;
-create policy "students_admin_write"
-on public.students for all
-to authenticated
-using (public.is_admin())
-with check (public.is_admin());
+-- Student mutations use service-role route handlers and guarded RPCs. Keeping
+-- direct authenticated writes closed prevents bypassing final-admin,
+-- deleted-account, concurrency, and audit protections.
 
 drop policy if exists "teams_select_logged_in" on public.teams;
 create policy "teams_select_logged_in"
@@ -1534,6 +1942,10 @@ using (
 drop policy if exists "library_items_officer_write" on public.library_items;
 drop policy if exists "library_items_officer_insert" on public.library_items;
 drop policy if exists "library_items_officer_update" on public.library_items;
+
+-- Library writes stay behind validated route handlers. Those handlers allow
+-- members to contribute active resources while reserving edits, restores, and
+-- removals for officers/admins; direct authenticated REST writes remain closed.
 
 drop policy if exists "practice_questions_officer_select" on public.practice_test_questions;
 create policy "practice_questions_officer_select"

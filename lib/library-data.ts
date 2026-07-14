@@ -101,9 +101,9 @@ const loadCachedConfiguredEventNames = unstable_cache(
   { revalidate: 60, tags: [libraryCacheTag] }
 );
 
-export async function getManagedLibraryItems() {
+export async function getManagedLibraryItems(includeInactive = true) {
   if (!hasSupabaseAdminConfig()) return [];
-  return queryLibraryItems(true);
+  return queryLibraryItems(includeInactive);
 }
 
 export function invalidateLibraryCache() {

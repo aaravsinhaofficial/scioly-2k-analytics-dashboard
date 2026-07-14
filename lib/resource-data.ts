@@ -81,7 +81,7 @@ function eventHub(seed: EventSeed): SciolyEventHub {
     ...seed,
     season: 2027,
     rulesStatus: "Draft",
-    // This is derived from named topics that have at least one vetted resource,
+    // This is derived from named topics that have at least one shared resource,
     // rather than an arbitrary event rating.
     coverageScore: Math.round(coverageRatio * 100),
     readiness: seed.resources.length === 0

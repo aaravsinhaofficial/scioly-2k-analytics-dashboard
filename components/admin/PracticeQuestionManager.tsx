@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, Loader2, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
-import { useMemo, useState, useTransition } from "react";
-import type { PracticeQuestionMutationResponse, PracticeQuestionType, PracticeTestQuestion } from "@/lib/practice-types";
+import { ArrowLeft, CheckCircle2, ClipboardCopy, Download, FileSpreadsheet, Loader2, Pencil, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
+import { useMemo, useState, useTransition, type ChangeEvent } from "react";
+import { PRACTICE_QUESTION_CSV_MAX_BYTES, PRACTICE_QUESTION_CSV_TEMPLATE } from "@/lib/practice-question-csv";
+import type { PracticeQuestionCsvImportResponse, PracticeQuestionCsvPreview, PracticeQuestionMutationResponse, PracticeQuestionType, PracticeTestQuestion } from "@/lib/practice-types";
 import { cn } from "@/lib/utils";
 
 interface TestInfo {
@@ -57,7 +58,12 @@ export function PracticeQuestionManager({ test, initialQuestions }: { test: Test
   const [form, setForm] = useState<FormState>(() => blank(Math.max(-1, ...initialQuestions.map((question) => question.position)) + 1));
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [csvInput, setCsvInput] = useState("");
+  const [csvPreview, setCsvPreview] = useState<PracticeQuestionCsvPreview | null>(null);
+  const [csvMessage, setCsvMessage] = useState<string | null>(null);
+  const [csvError, setCsvError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isCsvPending, startCsvTransition] = useTransition();
 
   function reset() {
     setForm(blank(nextPosition));
@@ -102,6 +108,77 @@ export function PracticeQuestionManager({ test, initialQuestions }: { test: Test
     });
   }
 
+  function updateCsvInput(value: string, nextMessage: string | null = null) {
+    setCsvInput(value);
+    setCsvPreview(null);
+    setCsvMessage(nextMessage);
+    setCsvError(null);
+  }
+
+  function loadCsvFile(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    if (!file) return;
+    if (file.size > PRACTICE_QUESTION_CSV_MAX_BYTES) {
+      setCsvError("The CSV is too large. The limit is 512 KB.");
+      setCsvPreview(null);
+      input.value = "";
+      return;
+    }
+    void file.text()
+      .then((text) => updateCsvInput(text, `${file.name} loaded. Select Parse preview to validate it.`))
+      .catch(() => setCsvError("Could not read that CSV file."))
+      .finally(() => { input.value = ""; });
+  }
+
+  function parseCsv(commit = false) {
+    setCsvMessage(null);
+    setCsvError(null);
+    startCsvTransition(async () => {
+      try {
+        const response = await fetch("/api/admin/practice-questions/import", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ testId: test.id, rawCsv: csvInput, commit }),
+        });
+        const payload = await response.json().catch(() => null) as PracticeQuestionCsvImportResponse | null;
+        if (payload?.preview) setCsvPreview(payload.preview);
+        if (!response.ok || !payload?.ok) throw new Error(payload?.error ?? "Could not parse the practice-question CSV.");
+        setCsvMessage(payload.message ?? (commit ? "Questions imported." : "Preview ready."));
+        if (commit) {
+          const imported = payload.questions ?? [];
+          setQuestions((current) => [...current, ...imported]);
+          setForm((current) => current.id ? current : blank(Math.max(nextPosition, ...imported.map((question) => question.position + 1))));
+          setCsvInput("");
+          setCsvPreview(null);
+        }
+      } catch (caught) {
+        setCsvError(caught instanceof Error ? caught.message : "Could not import the practice-question CSV.");
+      }
+    });
+  }
+
+  async function copyCsvTemplate() {
+    try {
+      await navigator.clipboard.writeText(PRACTICE_QUESTION_CSV_TEMPLATE);
+      setCsvMessage("Sample CSV copied to your clipboard.");
+      setCsvError(null);
+    } catch {
+      updateCsvInput(PRACTICE_QUESTION_CSV_TEMPLATE, "Clipboard access was unavailable, so the sample was loaded into the editor.");
+    }
+  }
+
+  function downloadCsvTemplate() {
+    const url = URL.createObjectURL(new Blob([PRACTICE_QUESTION_CSV_TEMPLATE], { type: "text/csv;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "practice-question-template.csv";
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setCsvMessage("Sample CSV downloaded.");
+    setCsvError(null);
+  }
+
   const ordered = [...questions].sort((left, right) => left.position - right.position || left.id - right.id);
 
   return (
@@ -110,6 +187,65 @@ export function PracticeQuestionManager({ test, initialQuestions }: { test: Test
         <Link href="/admin/library" className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-cyan-300 hover:text-white"><ArrowLeft className="h-4 w-4" /> Back to library</Link>
         <Link href={`/practice/tests/${test.id}`} className="inline-flex min-h-11 items-center rounded-md border border-court-line px-4 text-sm font-medium text-zinc-600 hover:border-cyan-400 hover:text-white">Preview test</Link>
       </div>
+
+      <section className="min-w-0 overflow-hidden rounded-md border border-court-line bg-court-panel">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-court-line p-4 sm:p-5">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-medium text-cyan-300"><FileSpreadsheet className="h-4 w-4" /> CSV question import</div>
+            <h2 className="mt-1 text-xl font-semibold text-white">Add a full test from a spreadsheet</h2>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-zinc-500">Load a CSV or paste its contents, then explicitly parse and review every row. Imports are all-or-nothing: any row error blocks the entire batch.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => void copyCsvTemplate()} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-court-line px-3 text-xs font-medium text-zinc-600 hover:border-cyan-400 hover:text-white"><ClipboardCopy className="h-3.5 w-3.5" /> Copy sample</button>
+            <button type="button" onClick={downloadCsvTemplate} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-court-line px-3 text-xs font-medium text-zinc-600 hover:border-cyan-400 hover:text-white"><Download className="h-3.5 w-3.5" /> Download sample</button>
+          </div>
+        </div>
+
+        <div className="grid min-w-0 gap-5 p-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,.9fr)] sm:p-5">
+          <div className="min-w-0 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">CSV source</p>
+              <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-court-control px-3 text-xs font-medium text-cyan-300 hover:border-cyan-400"><FileSpreadsheet className="h-3.5 w-3.5" /> Load .csv<input type="file" accept=".csv,text/csv" onChange={loadCsvFile} className="sr-only" /></label>
+            </div>
+            <textarea
+              rows={13}
+              spellCheck={false}
+              value={csvInput}
+              onChange={(event) => updateCsvInput(event.target.value)}
+              placeholder="Type,Question,Option A,Option B,Option C,Option D,Option E,Option F,Correct Answer,Model Answer,Explanation,Points,Order"
+              className="w-full resize-y rounded-md border border-court-control bg-court-elevated p-3 font-mono text-xs leading-5 text-white outline-none placeholder:text-zinc-500 focus:border-cyan-400"
+            />
+            <p className="text-xs leading-5 text-zinc-500">Correct Answer accepts A–F, 1–6, or the exact choice text. Leave Order blank to append the question after the current maximum. Maximum 500 rows / 512 KB.</p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button type="button" onClick={() => parseCsv(false)} disabled={isCsvPending || !csvInput.trim()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200 disabled:border disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500">{isCsvPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />} Parse preview</button>
+              <button type="button" onClick={() => parseCsv(true)} disabled={isCsvPending || !csvPreview?.canImport} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-cyan-400/50 px-4 text-sm font-semibold text-cyan-200 hover:bg-cyan-400 hover:text-black disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500"><Upload className="h-4 w-4" /> Import all questions</button>
+            </div>
+            {csvMessage ? <p role="status" className="rounded-md border border-emerald-300/30 bg-emerald-300/10 p-3 text-sm text-emerald-300">{csvMessage}</p> : null}
+            {csvError ? <p role="alert" className="rounded-md border border-red-300/30 bg-red-300/10 p-3 text-sm text-red-300">{csvError}</p> : null}
+          </div>
+
+          <div className="min-w-0 rounded-md border border-court-line bg-court-elevated p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div><p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Parse preview</p><h3 className="mt-1 font-semibold text-white">{csvPreview ? `${csvPreview.rowCount} row${csvPreview.rowCount === 1 ? "" : "s"} detected` : "Nothing parsed yet"}</h3></div>
+              {csvPreview ? <span className={cn("rounded-full px-2 py-1 text-xs", csvPreview.canImport ? "bg-emerald-300/10 text-emerald-300" : "bg-red-300/10 text-red-300")}>{csvPreview.canImport ? "Ready" : "Blocked"}</span> : null}
+            </div>
+            {csvPreview ? (
+              <div className="mt-4 space-y-3">
+                {csvPreview.errors.length > 0 ? (
+                  <div className="max-h-64 space-y-2 overflow-y-auto pr-1" role="alert">
+                    {csvPreview.errors.slice(0, 100).map((entry, index) => <div key={`${entry.row}-${entry.field ?? "row"}-${index}`} className="rounded-md border border-red-300/30 bg-red-300/5 p-3 text-xs leading-5 text-red-200"><span className="font-semibold">Row {entry.row}{entry.field ? ` · ${entry.field}` : ""}:</span> {entry.message}</div>)}
+                    {csvPreview.errors.length > 100 ? <p className="text-xs text-red-200">Showing the first 100 of {csvPreview.errors.length} errors.</p> : null}
+                  </div>
+                ) : (
+                  <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+                    {csvPreview.rows.map((row) => <article key={row.sourceRow} className="rounded-md border border-court-line bg-court-panel p-3"><div className="flex items-center justify-between gap-3 text-xs"><span className="font-medium text-cyan-300">Row {row.sourceRow} · {row.type.toUpperCase()}</span><span className="text-zinc-500">Order {row.position} · {row.points} pt{row.points === 1 ? "" : "s"}</span></div><p className="mt-2 line-clamp-2 break-words text-sm font-medium text-white">{row.prompt}</p>{row.type === "mcq" ? <p className="mt-1 text-xs text-emerald-300">Correct: {String.fromCharCode(65 + (row.correctOption ?? 0))}. {row.options[row.correctOption ?? 0]}</p> : <p className="mt-1 line-clamp-2 text-xs text-zinc-500">Model: {row.modelAnswer}</p>}</article>)}
+                  </div>
+                )}
+              </div>
+            ) : <p className="mt-3 text-sm leading-6 text-zinc-500">Select Parse preview after loading or pasting CSV data. The server reparses the same source again when you import.</p>}
+          </div>
+        </div>
+      </section>
 
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,460px)_minmax(0,1fr)]">
         <section className="min-w-0 rounded-md border border-court-line bg-court-panel p-4 sm:p-5">

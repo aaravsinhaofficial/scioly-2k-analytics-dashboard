@@ -38,10 +38,10 @@ export default async function ResourceEventPage({
           description={event.description}
           actions={(
             <div className="flex flex-wrap gap-2">
-              <span className="inline-flex min-h-11 items-center rounded-md border border-court-line bg-court-panel px-3 py-2 text-sm font-semibold text-white">{event.resources.length} vetted resource{event.resources.length === 1 ? "" : "s"}</span>
-              {roleMeets(currentUser.role, "officer") ? (
-                <Link href={`/admin/library?event=${encodeURIComponent(event.slug)}`} className="inline-flex min-h-11 items-center rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200">Manage library</Link>
-              ) : null}
+              <span className="inline-flex min-h-11 items-center rounded-md border border-court-line bg-court-panel px-3 py-2 text-sm font-semibold text-white">{event.resources.length} resource{event.resources.length === 1 ? "" : "s"}</span>
+              <Link href={`/admin/library?event=${encodeURIComponent(event.slug)}`} className="inline-flex min-h-11 items-center rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200">
+                {roleMeets(currentUser.role, "officer") ? "Manage library" : "Add a resource"}
+              </Link>
             </div>
           )}
         />
@@ -61,7 +61,7 @@ export default async function ResourceEventPage({
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <StatTile href="#topics" label="Topics represented" value={`${coveredTopicCount}/${event.topics.length}`} detail="Backed by a named resource" />
-          <StatTile href="#resources" label="Vetted resources" value={event.resources.length} detail="External links and team guides" />
+          <StatTile href="#resources" label="Shared resources" value={event.resources.length} detail="External links and team guides" />
           <StatTile href="#questions" label="Practice questions" value={event.questions.length} detail="Topic checks" />
           <StatTile href="#tests" label="Tests" value={event.tests.length} detail="Mini and full sets" />
         </section>
@@ -104,7 +104,7 @@ export default async function ResourceEventPage({
 
         <section id="resources" className="scroll-mt-24 rounded-md border border-court-line bg-court-panel p-5 md:p-6">
           <div className="text-sm font-medium text-cyan-300">Resources</div>
-          <h2 className="mt-1 text-xl font-semibold text-white">Vetted links and team guides</h2>
+          <h2 className="mt-1 text-xl font-semibold text-white">Links and team guides</h2>
           <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {event.resources.map((resource) => (
               <article id={`resource-${searchAnchor(resource.title)}`} key={resource.title} className="min-w-0 scroll-mt-24 rounded-md border border-court-line bg-court-elevated p-4">
@@ -138,7 +138,7 @@ export default async function ResourceEventPage({
             {event.resources.length === 0 ? (
               <div className="col-span-full rounded-md border border-dashed border-court-line p-6 text-center">
                 <p className="font-medium text-white">No resources added yet</p>
-                <p className="mt-1 text-sm text-zinc-500">An officer can add the first guide, link, or cheat sheet from Manage library.</p>
+                <p className="mt-1 text-sm text-zinc-500">Any team member can add the first useful link or notes from Add a resource.</p>
               </div>
             ) : null}
           </div>

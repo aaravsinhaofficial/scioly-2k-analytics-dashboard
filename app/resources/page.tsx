@@ -20,17 +20,17 @@ export default async function ResourcesPage() {
         <PageHeader
           label="Preparation"
           title="Event resources"
-          description="Open any 2027 Division C event for a focused study path and vetted links. Team questions and interactive tests appear here as officers add them."
-          actions={roleMeets(currentUser.role, "officer") ? (
+          description="Open any 2027 Division C event for a focused study path and shared links. Members can contribute useful resources; officers manage practice content and moderation."
+          actions={(
             <Link href="/admin/library" className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200">
-              Manage library
+              {roleMeets(currentUser.role, "officer") ? "Manage library" : "Add a resource"}
             </Link>
-          ) : undefined}
+          )}
         />
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <StatTile href="#resource-directory" label="Event libraries" value={stats.events} detail={`${stats.scoredEvents} scored + ${stats.trials} trial${stats.teamLibraries ? ` + ${stats.teamLibraries} team archive` : ""}`} />
-          <StatTile href="#resource-directory" label="Vetted resources" value={stats.resources} detail="Real external study material" />
+          <StatTile href="#resource-directory" label="Shared resources" value={stats.resources} detail="Built-in and team-contributed material" />
           <StatTile href="/practice" linkLabel="Browse practice" label="Practice questions" value={stats.questions} detail="With answers and explanations" />
           <StatTile href="/practice" linkLabel="Browse tests" label="Practice tests" value={stats.tests} detail="Mini, full, and testoff sets" />
         </section>

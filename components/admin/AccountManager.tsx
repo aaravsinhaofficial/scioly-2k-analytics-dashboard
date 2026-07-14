@@ -12,6 +12,7 @@ interface AccountManagerProps {
 
 type StudentWithArchiveState = Pick<PlayerDetail, "id" | "name" | "email" | "grade" | "role" | "profileEvents"> & {
   isArchived?: boolean;
+  accountDeleted?: boolean;
   archivedAt?: string | null;
   hasLogin?: boolean;
 };
@@ -24,6 +25,7 @@ interface EditableStudent {
   role: UserRole;
   profileEvents: string;
   isArchived: boolean;
+  accountDeleted: boolean;
   hasLogin: boolean;
 }
 
@@ -56,6 +58,7 @@ function toEditable(student: StudentWithArchiveState): EditableStudent {
     role: student.role,
     profileEvents: student.profileEvents?.join(", ") ?? "",
     isArchived: Boolean(student.isArchived || student.archivedAt),
+    accountDeleted: Boolean(student.accountDeleted),
     hasLogin: Boolean(student.hasLogin)
   };
 }
@@ -362,7 +365,7 @@ export function AccountManager({ students, teams = [] }: AccountManagerProps) {
           </div>
           <h2 className="mt-1 text-xl font-semibold text-white">People</h2>
           <p className="mt-1 max-w-2xl text-sm text-zinc-500">
-            Add people, update their profiles, or archive anyone who is no longer on the team. Archived people can be restored later.
+            Add people, update their profiles, or archive anyone who is no longer on the team. Archived people can be restored unless they deleted their own account.
           </p>
         </div>
         <button
@@ -521,7 +524,9 @@ export function AccountManager({ students, teams = [] }: AccountManagerProps) {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="truncate text-sm font-semibold text-white">{row.name}</h3>
-                    {row.isArchived ? (
+                    {row.accountDeleted ? (
+                      <span className="rounded-full border border-red-300/30 bg-red-300/10 px-2 py-0.5 text-[10px] font-black uppercase text-red-200">Account deleted</span>
+                    ) : row.isArchived ? (
                       <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-2 py-0.5 text-[10px] font-black uppercase text-amber-200">Archived</span>
                     ) : null}
                     <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${row.hasLogin ? "border-emerald-300/30 bg-emerald-300/10 text-emerald-200" : "border-court-line bg-court-panel text-zinc-500"}`}>
@@ -530,7 +535,7 @@ export function AccountManager({ students, teams = [] }: AccountManagerProps) {
                   </div>
                   <p className="mt-0.5 truncate text-xs text-zinc-500">{row.email}</p>
                 </div>
-                {row.isArchived ? (
+                {row.isArchived && !row.accountDeleted ? (
                   <button
                     type="button"
                     onClick={() => restoreStudent(row)}
@@ -540,6 +545,10 @@ export function AccountManager({ students, teams = [] }: AccountManagerProps) {
                     {restoringId === row.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
                     Restore
                   </button>
+                ) : row.accountDeleted ? (
+                  <span className="inline-flex min-h-10 shrink-0 items-center rounded-md border border-red-300/20 px-3 text-xs font-semibold text-red-200">
+                    Cannot restore
+                  </span>
                 ) : editingId !== row.id ? (
                   <div className="grid w-full shrink-0 grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
                     <button

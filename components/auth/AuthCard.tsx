@@ -49,7 +49,11 @@ export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
   const [grade, setGrade] = useState("9");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(() =>
+    mode === "login" && searchParams.get("account_deleted") === "1"
+      ? "Your account has been permanently deleted."
+      : null
+  );
   const [error, setError] = useState<string | null>(() =>
     searchParams.get("error") === "invalid_reset_link"
       ? "This password reset link is invalid or expired. Request a new link below."

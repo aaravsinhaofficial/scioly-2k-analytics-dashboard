@@ -84,7 +84,7 @@ export function ResourceDirectory({ events }: { events: SciolyEventHub[] }) {
               </div>
               <p className="mt-3 text-sm leading-6 text-zinc-500">{event.tagline}</p>
               <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
-                <span>{event.resources.length} vetted resources</span>
+                <span>{event.resources.length} shared resources</span>
                 <span aria-hidden="true">·</span>
                 <span>{event.questions.length + event.tests.length} practice items</span>
                 {event.rulesStatus ? <><span aria-hidden="true">·</span><span>{event.season} {event.rulesStatus.toLowerCase()} scope</span></> : null}

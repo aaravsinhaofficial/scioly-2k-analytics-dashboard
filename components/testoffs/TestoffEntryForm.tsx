@@ -42,9 +42,11 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
   const router = useRouter();
   const initialDate = today();
   const initialSeason = data.activeSeasonId ?? data.seasons[0]?.id;
+  const currentEvents = data.events.filter((event) => event.isCurrentSeason);
+  const legacyEvents = data.events.filter((event) => !event.isCurrentSeason);
   const [seasonChoice, setSeasonChoice] = useState(initialSeason ? String(initialSeason) : "new");
   const [newSeasonName, setNewSeasonName] = useState(seasonNameForDate(initialDate));
-  const [eventChoice, setEventChoice] = useState(data.events[0] ? String(data.events[0].id) : "new");
+  const [eventChoice, setEventChoice] = useState(data.events[0]?.value ?? "new");
   const [newEventName, setNewEventName] = useState("");
   const [newEventCategory, setNewEventCategory] = useState<EventCategory>("study");
   const [name, setName] = useState("Testoff 1");
@@ -79,6 +81,7 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
   function submit() {
     setMessage(null);
     setError(null);
+    const selectedEvent = data.events.find((event) => event.value === eventChoice);
     const results = data.students.flatMap((student) => {
       const value = scores[student.id]?.trim();
       if (value === undefined || value === "") return [];
@@ -89,18 +92,25 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
       setError("Enter at least one student score.");
       return;
     }
+    if (eventChoice !== "new" && !selectedEvent) {
+      setError("Choose an event from the updated event list.");
+      return;
+    }
 
     startTransition(async () => {
       try {
+        const eventInput = eventChoice === "new"
+          ? { eventName: newEventName, eventCategory: newEventCategory }
+          : selectedEvent?.id
+            ? { eventId: selectedEvent.id }
+            : { eventName: selectedEvent?.name, eventCategory: selectedEvent?.category };
         const response = await fetch("/api/admin/testoffs", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             seasonId: seasonChoice === "new" ? undefined : Number(seasonChoice),
             seasonName: seasonChoice === "new" ? newSeasonName : undefined,
-            eventId: eventChoice === "new" ? undefined : Number(eventChoice),
-            eventName: eventChoice === "new" ? newEventName : undefined,
-            eventCategory: eventChoice === "new" ? newEventCategory : undefined,
+            ...eventInput,
             name,
             date,
             maxScore: Number(maxScore),
@@ -189,12 +199,25 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
               onChange={(event) => setEventChoice(event.target.value)}
               className="h-11 rounded-md border border-court-line bg-court-elevated px-3 text-sm font-bold normal-case text-white outline-none focus:border-cyan-400"
             >
-              {data.events.map((event) => (
-                <option key={event.id} value={event.id}>
-                  {event.name} ({event.category})
-                </option>
-              ))}
-              <option value="new">Create a new event…</option>
+              <optgroup label="2027 Division C events">
+                {currentEvents.map((event) => (
+                  <option key={event.value} value={event.value}>
+                    {event.name}{event.isTrial ? " — Trial" : ""} ({event.category === "build" ? "Build" : "Study"})
+                  </option>
+                ))}
+              </optgroup>
+              {legacyEvents.length > 0 ? (
+                <optgroup label="Legacy and custom events">
+                  {legacyEvents.map((event) => (
+                    <option key={event.value} value={event.value}>
+                      {event.name} ({event.category === "build" ? "Build" : "Study"})
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null}
+              <optgroup label="Other">
+                <option value="new">Create a new event…</option>
+              </optgroup>
             </select>
           </label>
 

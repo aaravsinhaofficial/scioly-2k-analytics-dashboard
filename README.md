@@ -25,6 +25,7 @@ Development runs with demo data when Supabase variables are absent. Production f
 1. Create a Supabase project, either directly or from **Vercel → Project → Storage → Create Database → Supabase**.
 2. Open the Supabase SQL editor.
 3. Run the complete [`supabase/schema.sql`](supabase/schema.sql) file once.
+   Re-run the complete, idempotent schema after pulling schema-changing updates; the account-deletion flow requires the latest functions and columns.
 4. In Supabase Auth URL settings, set:
    - Site URL: your canonical production URL (currently `https://www.sciolytracker.com`)
    - Redirect URLs: `https://www.sciolytracker.com/auth/callback` and `https://sciolytracker.com/auth/callback`
@@ -99,7 +100,9 @@ Set `www.sciolytracker.com` as the primary production domain and redirect `sciol
 ## Operational workflow
 
 - Students submit practice logs; officers approve or reject them.
-- Officers import Tompkins tournament results from CSV or enter testoff sessions and scores.
+- Officers import Tompkins tournament results from CSV, enter testoff sessions and scores, and bulk-import practice-test questions from parsed CSV files.
+- Members can add event-library resources; officers and admins retain moderation and removal controls.
+- Members can delete their own login and personal profile. Historical competition and team records remain attached to an anonymized placeholder.
 - Testoff rankings normalize raw score by the session maximum and weight.
 - Admins manage accounts, roles, A/B/C rosters, custom point categories, and audit reversals.
 - Competition imports retain the full field for strength-of-schedule calculations but credit only schools matching the configured Tompkins aliases.

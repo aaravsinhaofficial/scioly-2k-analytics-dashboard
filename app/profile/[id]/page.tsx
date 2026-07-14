@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { PlayerProfile } from "@/components/profile/PlayerProfile";
 import { getProfileData } from "@/lib/data";
+import { hasSupabaseAdminConfig, hasSupabaseConfig } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,8 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
         player={player}
         canWithdrawPoints={currentUser.id === player.id}
         canRemovePoints={currentUser.role === "admin"}
+        canDeleteAccount={currentUser.id === player.id && hasSupabaseConfig() && hasSupabaseAdminConfig()}
+        accountEmail={currentUser.id === player.id ? currentUser.email : undefined}
       />
     </AppShell>
   );

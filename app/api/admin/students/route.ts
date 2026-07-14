@@ -51,6 +51,7 @@ function personResponse(row: DbRow) {
     role: (roles.has(row.role as UserRole) ? row.role : "viewer") as UserRole,
     profileEvents: normalizeEvents(row.profile_events),
     isArchived: row.is_active === false,
+    accountDeleted: Boolean(row.account_deleted_at),
     archivedAt: typeof row.archived_at === "string" ? row.archived_at : null,
     hasLogin: typeof row.auth_user_id === "string" && row.auth_user_id.length > 0
   };
@@ -65,6 +66,7 @@ function demoPerson(student: Student) {
     role: student.role,
     profileEvents: student.profileEvents ?? [],
     isArchived: Boolean(student.isArchived),
+    accountDeleted: false,
     archivedAt: null,
     hasLogin: true
   };
@@ -84,7 +86,10 @@ async function requireAdmin(errorMessage: string) {
 async function activeAdminCount(supabase: NonNullable<ReturnType<typeof getSupabaseAdmin>>) {
   const { data, error } = await supabase.from("students").select("*").eq("role", "admin");
   if (error) return { count: 0, error };
-  return { count: (data ?? []).filter((row) => row.is_active !== false).length, error: null };
+  return {
+    count: (data ?? []).filter((row) => row.is_active !== false && typeof row.auth_user_id === "string").length,
+    error: null
+  };
 }
 
 async function audit(
@@ -201,6 +206,9 @@ export async function POST(request: Request) {
     if (loadError) return NextResponse.json({ ok: false, error: migrationError(loadError.message) }, { status: 500 });
     if (!before) return NextResponse.json({ ok: false, error: "Person not found." }, { status: 404 });
     if (before.is_active !== false) return NextResponse.json({ ok: false, error: "This person is already active." }, { status: 409 });
+    if (before.account_deleted_at) {
+      return NextResponse.json({ ok: false, error: "Permanently deleted accounts cannot be restored." }, { status: 409 });
+    }
 
     const beforeSnapshot = { student: before, memberships: [] as DbRow[] };
     const restoredRole: UserRole = !before.auth_user_id && before.role !== "viewer"

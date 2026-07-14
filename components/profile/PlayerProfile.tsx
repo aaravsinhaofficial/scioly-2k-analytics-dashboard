@@ -8,6 +8,7 @@ import { ReadinessBadge } from "@/components/ReadinessBadge";
 import { StatTile } from "@/components/StatTile";
 import { PlayerTrendChart } from "@/components/charts/PlayerTrendChart";
 import { PointHistoryTable } from "@/components/points/PointHistoryTable";
+import { DeleteAccountPanel } from "@/components/profile/DeleteAccountPanel";
 import type { PlayerDetail } from "@/lib/types";
 import { searchAnchor } from "@/lib/search-utils";
 import { cn, formatDate, formatNumber } from "@/lib/utils";
@@ -18,9 +19,19 @@ interface PlayerProfileProps {
   onClose?: () => void;
   canWithdrawPoints?: boolean;
   canRemovePoints?: boolean;
+  canDeleteAccount?: boolean;
+  accountEmail?: string;
 }
 
-export function PlayerProfile({ player, mode = "page", onClose, canWithdrawPoints = false, canRemovePoints = false }: PlayerProfileProps) {
+export function PlayerProfile({
+  player,
+  mode = "page",
+  onClose,
+  canWithdrawPoints = false,
+  canRemovePoints = false,
+  canDeleteAccount = false,
+  accountEmail
+}: PlayerProfileProps) {
   const [tab, setTab] = useState<"competitions" | "points">("competitions");
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -265,6 +276,8 @@ export function PlayerProfile({ player, mode = "page", onClose, canWithdrawPoint
             </div>
           )}
         </section>
+
+        {mode === "page" && canDeleteAccount && accountEmail ? <DeleteAccountPanel email={accountEmail} /> : null}
       </div>
     </div>
   );

@@ -65,6 +65,7 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
     items: [
       { href: "/resources", label: "Event resources", icon: BookOpen, role: "viewer" },
       { href: "/practice", label: "Practice library", icon: Target, role: "viewer" },
+      { href: "/admin/library", label: "Event library", icon: BookOpen, role: "viewer" },
     ],
   },
   {
@@ -73,7 +74,6 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
       { href: "/admin/approve", label: "Approval queue", icon: ClipboardCheck, role: "officer" },
       { href: "/admin/testoffs", label: "Enter testoff scores", icon: ClipboardList, role: "officer" },
       { href: "/admin/upload", label: "Import results", icon: FileUp, role: "officer" },
-      { href: "/admin/library", label: "Manage library", icon: BookOpen, role: "officer" },
       { href: "/admin/reports", label: "Reports", icon: FileBarChart, role: "admin" },
       { href: "/admin/manage", label: "Manage team", icon: Shield, role: "admin" },
       { href: "/admin/audit", label: "Audit log", icon: History, role: "admin" },
