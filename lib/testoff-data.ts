@@ -1,12 +1,14 @@
 import "server-only";
 
+import { sciolyEvents, type SciolyEventHub } from "@/lib/resource-data";
 import { getSupabaseAdmin, hasSupabaseConfig } from "@/lib/supabase";
+import { normalizeEventName } from "@/lib/utils";
 import type {
   EventCategory,
-  EventDefinition,
   TestoffAdminData,
   TestoffCompositeRanking,
   TestoffDashboardData,
+  TestoffEventOption,
   TestoffEventRanking,
   TestoffResult,
   TestoffSeason,
@@ -27,6 +29,64 @@ function stringValue(value: unknown, fallback = "") {
 
 function eventCategory(value: unknown): EventCategory {
   return value === "build" ? "build" : "study";
+}
+
+function catalogEventCategory(value: SciolyEventHub["category"]): EventCategory {
+  return value === "Build" ? "build" : "study";
+}
+
+function testoffEventOptions(rows: DbRow[]): TestoffEventOption[] {
+  const databaseEvents = rows.map((row) => ({
+    id: numberValue(row.id),
+    name: stringValue(row.name, "Unknown event"),
+    category: eventCategory(row.category)
+  }));
+  const databaseEventsByCanonicalName = new Map<string, typeof databaseEvents>();
+
+  for (const event of databaseEvents) {
+    const canonicalName = normalizeEventName(event.name);
+    const matches = databaseEventsByCanonicalName.get(canonicalName) ?? [];
+    matches.push(event);
+    databaseEventsByCanonicalName.set(canonicalName, matches);
+  }
+
+  const currentCanonicalNames = new Set<string>();
+  const currentEvents = sciolyEvents.map<TestoffEventOption>((catalogEvent) => {
+    const canonicalName = normalizeEventName(catalogEvent.name);
+    currentCanonicalNames.add(canonicalName);
+    const matches = databaseEventsByCanonicalName.get(canonicalName) ?? [];
+    const databaseEvent =
+      matches.find((event) => event.name.toLowerCase() === catalogEvent.name.toLowerCase()) ?? matches[0];
+
+    return {
+      value: `catalog:${catalogEvent.slug}`,
+      id: databaseEvent?.id,
+      name: catalogEvent.name,
+      category: databaseEvent?.category ?? catalogEventCategory(catalogEvent.category),
+      isCurrentSeason: true,
+      isTrial: catalogEvent.isTrial === true
+    };
+  });
+
+  const retainedCanonicalNames = new Set(currentCanonicalNames);
+  const legacyEvents = databaseEvents.flatMap<TestoffEventOption>((event) => {
+    const canonicalName = normalizeEventName(event.name);
+    if (retainedCanonicalNames.has(canonicalName)) return [];
+    retainedCanonicalNames.add(canonicalName);
+    return [{
+      value: `database:${event.id}`,
+      id: event.id,
+      name: event.name,
+      category: event.category,
+      isCurrentSeason: false,
+      isTrial: false
+    }];
+  });
+
+  return [
+    ...currentEvents,
+    ...legacyEvents.sort((left, right) => left.name.localeCompare(right.name))
+  ];
 }
 
 function round(value: number, places = 3) {
@@ -256,11 +316,7 @@ export async function loadTestoffAdminData(): Promise<TestoffAdminData> {
   if (studentResult.error) throw new Error(`Could not load students: ${studentResult.error.message}`);
 
   const seasons = ((seasonResult.data ?? []) as DbRow[]).map(mapSeason);
-  const events: EventDefinition[] = ((eventResult.data ?? []) as DbRow[]).map((row) => ({
-    id: numberValue(row.id),
-    name: stringValue(row.name, "Unknown event"),
-    category: eventCategory(row.category)
-  }));
+  const events = testoffEventOptions((eventResult.data ?? []) as DbRow[]);
   const students: TestoffStudentOption[] = ((studentResult.data ?? []) as DbRow[]).filter((row) => row.is_active !== false).map((row) => ({
     id: stringValue(row.id),
     name: stringValue(row.name, "Unknown student"),

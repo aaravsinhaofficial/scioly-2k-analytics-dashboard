@@ -3,7 +3,7 @@ import "server-only";
 import { sciolyEvents, type SciolyEventHub } from "@/lib/resource-data";
 import type { SearchDirectory } from "@/lib/search-directory";
 import type { SearchCandidate, SearchResult } from "@/lib/search-types";
-import { scoreSearchCandidate, searchAnchor } from "@/lib/search-utils";
+import { libraryContentAnchor, scoreSearchCandidate } from "@/lib/search-utils";
 
 function rankedResults(candidates: SearchCandidate[], query: string, limit: number): SearchResult[] {
   return candidates
@@ -29,37 +29,40 @@ export function searchResourceContent(query: string, events: SciolyEventHub[] = 
     });
 
     for (const resource of event.resources) {
+      const anchor = libraryContentAnchor(resource.title, resource.libraryId);
       candidates.push({
-        id: `resource:${event.slug}:${searchAnchor(resource.title)}`,
+        id: `resource:${event.slug}:${anchor}`,
         kind: "resource",
         group: "Resources",
         title: resource.title,
         subtitle: `${event.name} · ${resource.type} · ${resource.topic}`,
-        href: `/resources/${event.slug}#resource-${searchAnchor(resource.title)}`,
+        href: `/resources/${event.slug}#resource-${anchor}`,
         keywords: [event.name, resource.description, resource.difficulty, resource.topic, resource.type, resource.body ?? "", resource.url ?? ""]
       });
     }
 
     for (const question of event.questions) {
+      const anchor = libraryContentAnchor(question.question, question.libraryId);
       candidates.push({
-        id: `question:${event.slug}:${searchAnchor(question.question)}`,
+        id: `question:${event.slug}:${anchor}`,
         kind: "question",
         group: "Practice",
         title: question.question,
         subtitle: `${event.name} · ${question.topic} · ${question.difficulty}`,
-        href: `/resources/${event.slug}#question-${searchAnchor(question.question)}`,
+        href: `/resources/${event.slug}#question-${anchor}`,
         keywords: [event.name, question.topic, question.answer, question.explanation, question.difficulty]
       });
     }
 
     for (const test of event.tests) {
+      const anchor = libraryContentAnchor(test.title, test.libraryId);
       candidates.push({
-        id: `test:${event.slug}:${searchAnchor(test.title)}`,
+        id: `test:${event.slug}:${anchor}`,
         kind: "test",
         group: "Practice",
         title: test.title,
         subtitle: `${event.name} · ${test.format} · ${test.difficulty}`,
-        href: test.libraryId ? `/practice/tests/${test.libraryId}` : `/resources/${event.slug}#test-${searchAnchor(test.title)}`,
+        href: test.libraryId ? `/practice/tests/${test.libraryId}` : `/resources/${event.slug}#test-${anchor}`,
         keywords: [event.name, test.description, test.format, test.difficulty, test.body ?? "", test.url ?? ""]
       });
     }

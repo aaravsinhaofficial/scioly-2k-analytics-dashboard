@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     }
 
     await authClient.auth.signOut();
-    return NextResponse.redirect(new URL("/login?error=account_archived", request.url));
+    return NextResponse.redirect(new URL("/login?error=account_unavailable", request.url));
   }
 
   if (code) {

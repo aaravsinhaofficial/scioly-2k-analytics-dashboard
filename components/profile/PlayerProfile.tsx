@@ -8,6 +8,7 @@ import { ReadinessBadge } from "@/components/ReadinessBadge";
 import { StatTile } from "@/components/StatTile";
 import { PlayerTrendChart } from "@/components/charts/PlayerTrendChart";
 import { PointHistoryTable } from "@/components/points/PointHistoryTable";
+import { DeleteAccountPanel } from "@/components/profile/DeleteAccountPanel";
 import type { PlayerDetail } from "@/lib/types";
 import { searchAnchor } from "@/lib/search-utils";
 import { cn, formatDate, formatNumber } from "@/lib/utils";
@@ -18,20 +19,51 @@ interface PlayerProfileProps {
   onClose?: () => void;
   canWithdrawPoints?: boolean;
   canRemovePoints?: boolean;
+  canDeleteAccount?: boolean;
+  accountEmail?: string;
 }
 
-export function PlayerProfile({ player, mode = "page", onClose, canWithdrawPoints = false, canRemovePoints = false }: PlayerProfileProps) {
+export function PlayerProfile({
+  player,
+  mode = "page",
+  onClose,
+  canWithdrawPoints = false,
+  canRemovePoints = false,
+  canDeleteAccount = false,
+  accountEmail
+}: PlayerProfileProps) {
   const [tab, setTab] = useState<"competitions" | "points">("competitions");
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (mode !== "modal") return;
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    closeButtonRef.current?.focus();
+    (closeButtonRef.current ?? dialogRef.current)?.focus();
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose?.();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose?.();
+        return;
+      }
+      if (event.key !== "Tab" || !dialogRef.current) return;
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )).filter((element) => element.getAttribute("aria-hidden") !== "true");
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first || !last) {
+        event.preventDefault();
+        dialogRef.current.focus();
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => {
@@ -53,7 +85,7 @@ export function PlayerProfile({ player, mode = "page", onClose, canWithdrawPoint
                 <span>{player.teamDesignation} Team</span>
                 <span>Grade {player.grade}</span>
               </div>
-              <h1 className="mt-2 text-balance text-3xl font-semibold tracking-tight text-white md:text-4xl">
+              <h1 id={`player-${player.id}-heading`} className="mt-2 text-balance text-3xl font-semibold tracking-tight text-white md:text-4xl">
                 {player.name}
               </h1>
               <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -106,36 +138,45 @@ export function PlayerProfile({ player, mode = "page", onClose, canWithdrawPoint
       </div>
 
       <div className="space-y-6 p-5 md:p-8">
-        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <StatTile
-            label="Readiness"
-            value={<ReadinessBadge value={player.readinessScore} status={player.readinessStatus} size="sm" showLabel />}
-            detail={player.readinessIsProvisional ? "Provisional until competition and testoff data are both available" : "Competition, testoffs, and recent preparation"}
-          />
-          <StatTile
-            label="Competition component"
-            value={player.competitionScore || "—"}
-            detail="60% of readiness when available"
-          />
-          <StatTile
-            label="Testoff component"
-            value={player.testoffScore || "—"}
-            detail="30% of readiness when available"
-          />
-          <StatTile label="Preparation component" value={player.preparationScore} detail={`${formatNumber(player.thirtyDayPoints)} approved points in 30 days`} />
-          <StatTile label="Approved practice" value={formatNumber(player.approvedPracticePoints)} detail="All time" />
-          <StatTile label="Pending practice" value={formatNumber(player.pendingPracticePoints)} detail="Awaiting officer review" />
-          <StatTile label="Competition points" value={formatNumber(player.competitionPoints)} detail="Recorded tournament results" />
-          <StatTile
-            label="Tournaments Attended"
-            value={player.tournamentsAttended}
-            detail={
-              <span className="inline-flex items-center gap-2">
-                <CalendarDays className="h-4 w-4" aria-hidden="true" />
-                Weekly snapshots active
-              </span>
-            }
-          />
+        <section aria-labelledby={`player-${player.id}-readiness-heading`}>
+          <h2 id={`player-${player.id}-readiness-heading`} className="mb-3 text-lg font-semibold text-white">Current readiness</h2>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <StatTile
+              label="Overall readiness"
+              value={<ReadinessBadge value={player.readinessScore} status={player.readinessStatus} size="sm" showLabel />}
+              detail={player.readinessIsProvisional ? "Provisional until competition and testoff data are both available" : "Competition, testoffs, and recent preparation"}
+            />
+            <StatTile
+              label="Competition component"
+              value={player.competitionScore || "—"}
+              detail="60% of readiness when available"
+            />
+            <StatTile
+              label="Testoff component"
+              value={player.testoffScore || "—"}
+              detail="30% of readiness when available"
+            />
+            <StatTile label="Preparation component" value={player.preparationScore} detail={`${formatNumber(player.thirtyDayPoints)} approved points in 30 days`} />
+          </div>
+        </section>
+
+        <section aria-labelledby={`player-${player.id}-activity-heading`}>
+          <h2 id={`player-${player.id}-activity-heading`} className="mb-3 text-lg font-semibold text-white">Activity totals</h2>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <StatTile label="Approved practice" value={formatNumber(player.approvedPracticePoints)} detail="All time" />
+            <StatTile label="Pending practice" value={formatNumber(player.pendingPracticePoints)} detail="Awaiting officer review" />
+            <StatTile label="Competition points" value={formatNumber(player.competitionPoints)} detail="Recorded tournament results" />
+            <StatTile
+              label="Tournaments attended"
+              value={player.tournamentsAttended}
+              detail={
+                <span className="inline-flex items-center gap-2">
+                  <CalendarDays className="h-4 w-4" aria-hidden="true" />
+                  Weekly snapshots active
+                </span>
+              }
+            />
+          </div>
         </section>
 
         <section>
@@ -154,7 +195,7 @@ export function PlayerProfile({ player, mode = "page", onClose, canWithdrawPoint
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {player.eventBreakdowns.length > 0 ? (
               player.eventBreakdowns.map((event) => (
-                <Link key={event.eventId} href={`/resources/${searchAnchor(event.eventName)}`} className="group rounded-md border border-court-line bg-court-panel p-4 transition-colors hover:border-cyan-400 hover:bg-court-elevated">
+                <Link key={event.eventId} href={`/resources/${searchAnchor(event.eventName)}`} className="group rounded-md border border-court-line bg-court-panel p-4 transition-colors hover:border-cyan-400 hover:bg-court-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400">
                   <div className="text-xs font-black uppercase text-zinc-500">{event.category}</div>
                   <div className="mt-1 min-h-10 text-lg font-black text-white group-hover:text-cyan-300">{event.eventName}</div>
                   <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
@@ -193,12 +234,13 @@ export function PlayerProfile({ player, mode = "page", onClose, canWithdrawPoint
         <section>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-white">History</h2>
-            <div className="inline-flex rounded-md border border-court-line bg-court-panel p-1">
+            <div className="inline-flex rounded-md border border-court-line bg-court-panel p-1" role="group" aria-label="Choose profile history">
               {(["competitions", "points"] as const).map((item) => (
                 <button
                   key={item}
                   type="button"
                   onClick={() => setTab(item)}
+                  aria-pressed={tab === item}
                   className={cn(
                     "h-9 rounded px-3 text-xs font-black uppercase text-zinc-600 transition hover:text-white",
                     tab === item && "bg-white text-black hover:text-black"
@@ -211,26 +253,27 @@ export function PlayerProfile({ player, mode = "page", onClose, canWithdrawPoint
           </div>
 
           {tab === "competitions" ? (
-            <div className="overflow-x-auto rounded-md border border-court-line">
+            <div role="region" tabIndex={0} aria-label={`${player.name} competition history table`} className="overflow-x-auto rounded-md border border-court-line focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400">
               <table className="w-full min-w-[1060px] border-collapse bg-court-panel text-left text-sm">
+                <caption className="sr-only">Competition history for {player.name}</caption>
                 <thead className="bg-court-elevated text-[11px] font-black uppercase text-zinc-500">
                   <tr>
-                    <th className="px-4 py-3">Date</th>
-                    <th className="px-4 py-3">Tournament</th>
-                    <th className="px-4 py-3">Event</th>
-                    <th className="px-4 py-3">Participants</th>
-                    <th className="px-4 py-3">Rank</th>
-                    <th className="px-4 py-3">Medal</th>
-                    <th className="px-4 py-3">SOS</th>
-                    <th className="px-4 py-3">Benchmark</th>
-                    <th className="px-4 py-3">Points</th>
+                    <th scope="col" className="px-4 py-3">Date</th>
+                    <th scope="col" className="px-4 py-3">Tournament</th>
+                    <th scope="col" className="px-4 py-3">Event</th>
+                    <th scope="col" className="px-4 py-3">Participants</th>
+                    <th scope="col" className="px-4 py-3">Rank</th>
+                    <th scope="col" className="px-4 py-3">Medal</th>
+                    <th scope="col" className="px-4 py-3">SOS</th>
+                    <th scope="col" className="px-4 py-3">Benchmark</th>
+                    <th scope="col" className="px-4 py-3">Points</th>
                   </tr>
                 </thead>
                 <tbody>
                   {player.competitionHistory.map((row) => (
                     <tr key={row.id} className="border-t border-court-line">
                       <td className="px-4 py-3 text-zinc-500">{formatDate(row.date)}</td>
-                      <td className="px-4 py-3 font-bold text-white">{row.tournament}</td>
+                      <th scope="row" className="px-4 py-3 text-left font-bold text-white">{row.tournament}</th>
                       <td className="px-4 py-3 text-white"><Link href={`/resources/${searchAnchor(row.event)}`} className="hover:text-cyan-300">{row.event}</Link></td>
                       <td className="px-4 py-3 text-zinc-500">{row.participantNames.join(", ")}</td>
                       <td className="px-4 py-3 font-black text-white">#{row.rank}</td>
@@ -250,6 +293,9 @@ export function PlayerProfile({ player, mode = "page", onClose, canWithdrawPoint
                       </td>
                     </tr>
                   ))}
+                  {player.competitionHistory.length === 0 ? (
+                    <tr><td colSpan={9} className="px-4 py-10 text-center text-zinc-500">No competition results have been recorded yet.</td></tr>
+                  ) : null}
                 </tbody>
               </table>
             </div>
@@ -265,14 +311,16 @@ export function PlayerProfile({ player, mode = "page", onClose, canWithdrawPoint
             </div>
           )}
         </section>
+
+        {mode === "page" && canDeleteAccount && accountEmail ? <DeleteAccountPanel email={accountEmail} /> : null}
       </div>
     </div>
   );
 
   if (mode === "modal") {
     return (
-      <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-label={`${player.name} profile`}>
-        <button type="button" onClick={onClose} className="app-overlay fixed inset-0 h-full w-full backdrop-blur-sm" aria-label="Close player profile" />
+      <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-50 overflow-y-auto focus:outline-none" role="dialog" aria-modal="true" aria-labelledby={`player-${player.id}-heading`}>
+        <div onClick={onClose} className="app-overlay fixed inset-0 h-full w-full backdrop-blur-sm" aria-hidden="true" />
         <div className="relative ml-auto min-h-full w-full max-w-6xl shadow-panel">
           {content}
         </div>

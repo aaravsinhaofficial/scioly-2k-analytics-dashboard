@@ -30,7 +30,7 @@ export function StatTile({ label, value, detail, href, linkLabel }: StatTileProp
   );
 
   return href ? (
-    <Link href={href} className={className} aria-label={linkLabel ? `${label}: ${linkLabel}` : undefined}>
+    <Link href={href} className={className}>
       {content}
     </Link>
   ) : (

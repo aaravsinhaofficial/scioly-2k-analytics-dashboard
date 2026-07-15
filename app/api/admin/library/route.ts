@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentDemoUser } from "@/lib/analytics";
 import { getAuthenticatedStudent } from "@/lib/auth";
-import { getManagedLibraryItems, invalidateLibraryCache, libraryItemFromRow } from "@/lib/library-data";
+import { getLibraryEventOptions, getManagedLibraryItems, invalidateLibraryCache, libraryItemFromRow } from "@/lib/library-data";
 import type { LibraryItem, LibraryItemKind, LibraryMutationResponse } from "@/lib/library-types";
 import { getSupabaseAdmin, isDemoMode } from "@/lib/supabase";
 import { roleMeets } from "@/lib/utils";
@@ -119,13 +119,17 @@ function normalizeInput(body: LibraryInput): { value: NormalizedLibraryRow } | {
   } as const;
 }
 
-async function getOfficer() {
+async function canonicalEvent(value: NormalizedLibraryRow) {
+  const event = (await getLibraryEventOptions()).find((option) => option.slug === value.event_slug);
+  return event
+    ? { ...value, event_slug: event.slug, event_name: event.name }
+    : null;
+}
+
+async function getMember() {
   const currentUser = (await getAuthenticatedStudent()) ?? (isDemoMode() ? getCurrentDemoUser() : null);
   if (!currentUser) return { response: NextResponse.json({ ok: false, error: "Sign in before managing the library." }, { status: 401 }) };
-  if (!roleMeets(currentUser.role, "officer")) {
-    return { response: NextResponse.json({ ok: false, error: "Only officers and admins can manage the library." }, { status: 403 }) };
-  }
-  return { currentUser };
+  return { currentUser, canModerate: roleMeets(currentUser.role, "officer") };
 }
 
 function demoItem(input: NormalizedLibraryRow, id = Date.now()): LibraryItem {
@@ -134,9 +138,12 @@ function demoItem(input: NormalizedLibraryRow, id = Date.now()): LibraryItem {
 }
 
 export async function GET() {
-  const auth = await getOfficer();
+  const auth = await getMember();
   if (auth.response) return auth.response;
-  return NextResponse.json({ ok: true, items: await getManagedLibraryItems() }, { headers: { "cache-control": "private, no-store" } });
+  return NextResponse.json(
+    { ok: true, items: await getManagedLibraryItems(auth.canModerate) },
+    { headers: { "cache-control": "private, no-store" } }
+  );
 }
 
 async function audit(request: Request, entry: {
@@ -154,7 +161,7 @@ async function audit(request: Request, entry: {
     actor_id: entry.actorId,
     action: entry.action,
     target: entry.target,
-    reason: "Officer event library management",
+    reason: "Event library management",
     ip_address: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
     entity_table: "library_items",
     entity_id: String(entry.id),
@@ -167,7 +174,7 @@ async function audit(request: Request, entry: {
 }
 
 export async function POST(request: Request) {
-  const auth = await getOfficer();
+  const auth = await getMember();
   if (auth.response) return auth.response;
 
   const body = await request.json().catch(() => null) as LibraryInput | null;
@@ -175,12 +182,35 @@ export async function POST(request: Request) {
   if ("error" in normalized) {
     return NextResponse.json<LibraryMutationResponse>({ ok: false, error: normalized.error }, { status: 400 });
   }
+  const canonicalValue = await canonicalEvent(normalized.value);
+  if (!canonicalValue) {
+    return NextResponse.json<LibraryMutationResponse>(
+      { ok: false, error: "Choose an event from the current event library." },
+      { status: 400 }
+    );
+  }
+  if (!auth.canModerate && canonicalValue.kind !== "resource") {
+    return NextResponse.json<LibraryMutationResponse>(
+      { ok: false, error: "Members can contribute resource links and notes. Officers manage guides, questions, and tests." },
+      { status: 403 }
+    );
+  }
+  const value = {
+    ...canonicalValue,
+    is_featured: auth.canModerate && canonicalValue.is_featured,
+  };
 
   const supabase = getSupabaseAdmin();
   if (!supabase) {
+    if (!isDemoMode()) {
+      return NextResponse.json<LibraryMutationResponse>(
+        { ok: false, error: "Library contributions are unavailable because SUPABASE_SERVICE_ROLE_KEY is missing." },
+        { status: 503 }
+      );
+    }
     return NextResponse.json<LibraryMutationResponse>({
       ok: true,
-      item: demoItem(normalized.value),
+      item: demoItem(value),
       message: "Demo mode: item added for this session.",
       persisted: false,
     });
@@ -188,7 +218,7 @@ export async function POST(request: Request) {
 
   const { data, error } = await supabase
     .from("library_items")
-    .insert({ ...normalized.value, created_by: auth.currentUser.id, updated_by: auth.currentUser.id, is_active: true })
+    .insert({ ...value, created_by: auth.currentUser.id, updated_by: auth.currentUser.id, is_active: true })
     .select("*")
     .single();
   if (error || !data) {
@@ -198,7 +228,7 @@ export async function POST(request: Request) {
   const auditError = await audit(request, {
     actorId: auth.currentUser.id,
     action: "library.create",
-    target: normalized.value.title,
+    target: value.title,
     id: Number(data.id),
     after: data,
     undoAction: "library.remove",
@@ -214,15 +244,21 @@ export async function POST(request: Request) {
   return NextResponse.json<LibraryMutationResponse>({
     ok: true,
     item: libraryItemFromRow(data),
-    message: normalized.value.kind === "test"
-      ? `${normalized.value.title} added. Use Edit questions to build the interactive test.`
-      : `${normalized.value.title} added.`
+    message: value.kind === "test"
+      ? `${value.title} added. Use Edit questions to build the interactive test.`
+      : `${value.title} added.`
   });
 }
 
 export async function PATCH(request: Request) {
-  const auth = await getOfficer();
+  const auth = await getMember();
   if (auth.response) return auth.response;
+  if (!auth.canModerate) {
+    return NextResponse.json<LibraryMutationResponse>(
+      { ok: false, error: "Only officers and admins can edit or restore library items." },
+      { status: 403 }
+    );
+  }
 
   const body = await request.json().catch(() => null) as LibraryInput | null;
   const id = Number(body?.id);
@@ -239,12 +275,25 @@ export async function PATCH(request: Request) {
   if ("error" in normalized) {
     return NextResponse.json<LibraryMutationResponse>({ ok: false, error: normalized.error }, { status: 400 });
   }
+  const value = await canonicalEvent(normalized.value);
+  if (!value) {
+    return NextResponse.json<LibraryMutationResponse>(
+      { ok: false, error: "Choose an event from the current event library." },
+      { status: 400 }
+    );
+  }
 
   const supabase = getSupabaseAdmin();
   if (!supabase) {
+    if (!isDemoMode()) {
+      return NextResponse.json<LibraryMutationResponse>(
+        { ok: false, error: "Library editing is unavailable because SUPABASE_SERVICE_ROLE_KEY is missing." },
+        { status: 503 }
+      );
+    }
     return NextResponse.json<LibraryMutationResponse>({
       ok: true,
-      item: { ...demoItem(normalized.value, id), isActive: body?.isActive !== false },
+      item: { ...demoItem(value, id), isActive: body?.isActive !== false },
       message: "Demo mode: item updated for this session.",
       persisted: false,
     });
@@ -256,12 +305,12 @@ export async function PATCH(request: Request) {
   if (String(before.updated_at) !== expectedUpdatedAt) {
     return NextResponse.json<LibraryMutationResponse>({ ok: false, error: "This library item changed in another session. Reload before saving." }, { status: 409 });
   }
-  if (normalized.value.kind !== before.kind) {
+  if (value.kind !== before.kind) {
     return NextResponse.json<LibraryMutationResponse>({ ok: false, error: "Item type cannot be changed after creation. Create a new item instead." }, { status: 409 });
   }
 
   const update = {
-    ...normalized.value,
+    ...value,
     is_active: body?.isActive !== false,
     updated_by: auth.currentUser.id,
     updated_at: new Date().toISOString(),
@@ -279,7 +328,7 @@ export async function PATCH(request: Request) {
   const auditError = await audit(request, {
     actorId: auth.currentUser.id,
     action: body?.isActive !== false && before.is_active === false ? "library.restore" : "library.update",
-    target: normalized.value.title,
+    target: value.title,
     id,
     before,
     after: data,
@@ -294,12 +343,18 @@ export async function PATCH(request: Request) {
     );
   }
   invalidateLibraryCache();
-  return NextResponse.json<LibraryMutationResponse>({ ok: true, item: libraryItemFromRow(data), message: `${normalized.value.title} updated.` });
+  return NextResponse.json<LibraryMutationResponse>({ ok: true, item: libraryItemFromRow(data), message: `${value.title} updated.` });
 }
 
 export async function DELETE(request: Request) {
-  const auth = await getOfficer();
+  const auth = await getMember();
   if (auth.response) return auth.response;
+  if (!auth.canModerate) {
+    return NextResponse.json<LibraryMutationResponse>(
+      { ok: false, error: "Only officers and admins can remove library items." },
+      { status: 403 }
+    );
+  }
   const body = await request.json().catch(() => null) as { id?: number; updatedAt?: string } | null;
   const id = Number(body?.id);
   if (!Number.isInteger(id) || id <= 0) {
@@ -314,6 +369,12 @@ export async function DELETE(request: Request) {
 
   const supabase = getSupabaseAdmin();
   if (!supabase) {
+    if (!isDemoMode()) {
+      return NextResponse.json<LibraryMutationResponse>(
+        { ok: false, error: "Library moderation is unavailable because SUPABASE_SERVICE_ROLE_KEY is missing." },
+        { status: 503 }
+      );
+    }
     return NextResponse.json<LibraryMutationResponse>({ ok: true, message: "Demo mode: item removed for this session.", persisted: false });
   }
   const { data: before, error: loadError } = await supabase.from("library_items").select("*").eq("id", id).maybeSingle();

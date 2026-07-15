@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Archive, Loader2, Pencil, Plus, RotateCcw, Save, Search, Shield, UserPlus, X } from "lucide-react";
 import type { PlayerDetail, UserRole } from "@/lib/types";
+import { AdminDialog } from "@/components/admin/AdminDialog";
 
 interface AccountManagerProps {
   students: PlayerDetail[];
@@ -12,6 +13,7 @@ interface AccountManagerProps {
 
 type StudentWithArchiveState = Pick<PlayerDetail, "id" | "name" | "email" | "grade" | "role" | "profileEvents"> & {
   isArchived?: boolean;
+  accountDeleted?: boolean;
   archivedAt?: string | null;
   hasLogin?: boolean;
 };
@@ -24,6 +26,7 @@ interface EditableStudent {
   role: UserRole;
   profileEvents: string;
   isArchived: boolean;
+  accountDeleted: boolean;
   hasLogin: boolean;
 }
 
@@ -56,6 +59,7 @@ function toEditable(student: StudentWithArchiveState): EditableStudent {
     role: student.role,
     profileEvents: student.profileEvents?.join(", ") ?? "",
     isArchived: Boolean(student.isArchived || student.archivedAt),
+    accountDeleted: Boolean(student.accountDeleted),
     hasLogin: Boolean(student.hasLogin)
   };
 }
@@ -99,6 +103,9 @@ export function AccountManager({ students, teams = [] }: AccountManagerProps) {
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [archiving, setArchiving] = useState(false);
   const [loadingPeople, setLoadingPeople] = useState(true);
+  const keepPersonButtonRef = useRef<HTMLButtonElement>(null);
+  const addPersonButtonRef = useRef<HTMLButtonElement>(null);
+  const editFirstFieldRef = useRef<HTMLInputElement>(null);
 
   async function loadAllPeople(signal?: AbortSignal) {
     try {
@@ -164,6 +171,35 @@ export function AccountManager({ students, teams = [] }: AccountManagerProps) {
     setError(null);
   }
 
+  function focusEditTrigger(id: string) {
+    window.requestAnimationFrame(() => {
+      const trigger = document.getElementById(`edit-person-${id}`);
+      if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus();
+      else addPersonButtonRef.current?.focus();
+    });
+  }
+
+  function closeAddForm() {
+    setShowAddForm(false);
+    setNewStudent(emptyStudent);
+    window.requestAnimationFrame(() => addPersonButtonRef.current?.focus());
+  }
+
+  function beginEditing(id: string) {
+    clearFeedback();
+    setEditingId(id);
+    window.requestAnimationFrame(() => {
+      editFirstFieldRef.current?.focus();
+      editFirstFieldRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }
+
+  function closeEditor(id: string, reload = false) {
+    setEditingId(null);
+    focusEditTrigger(id);
+    if (reload) void loadAllPeople();
+  }
+
   function updateRow(id: string, patch: Partial<EditableStudent>) {
     setRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)));
   }
@@ -198,8 +234,7 @@ export function AccountManager({ students, teams = [] }: AccountManagerProps) {
       });
       const payload = await parseResponse(response, "Could not add this person.");
       setMessage(payload?.message ?? `${newStudent.name.trim()} was added.`);
-      setNewStudent(emptyStudent);
-      setShowAddForm(false);
+      closeAddForm();
       setStatusFilter("active");
       await loadAllPeople();
       router.refresh();
@@ -234,7 +269,9 @@ export function AccountManager({ students, teams = [] }: AccountManagerProps) {
       const payload = await parseResponse(response, "Could not save this person.");
       setMessage(payload?.message ?? `${row.name.trim()} was updated.`);
       setEditingId(null);
+      focusEditTrigger(row.id);
       await loadAllPeople();
+      focusEditTrigger(row.id);
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not save this person.");
@@ -293,6 +330,7 @@ export function AccountManager({ students, teams = [] }: AccountManagerProps) {
       <>
         <FormField label="Name" className={layout === "row" ? "lg:col-span-2" : "sm:col-span-2"}>
           <input
+            ref={editingId === row.id ? editFirstFieldRef : undefined}
             value={row.name}
             disabled={archived}
             onChange={(event) => updateRow(row.id, { name: event.target.value })}
@@ -353,23 +391,27 @@ export function AccountManager({ students, teams = [] }: AccountManagerProps) {
   }
 
   return (
-    <section className="min-w-0 overflow-hidden rounded-md border border-court-line bg-court-panel">
+    <section className="min-w-0 overflow-hidden rounded-md border border-court-line bg-court-panel" aria-labelledby="people-heading">
       <div className="flex flex-col gap-4 border-b border-court-line p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs font-black uppercase text-cyan-300">
             <Shield className="h-4 w-4" aria-hidden="true" />
             Admin only
           </div>
-          <h2 className="mt-1 text-xl font-semibold text-white">People</h2>
+          <h2 id="people-heading" className="mt-1 text-xl font-semibold text-white">People</h2>
           <p className="mt-1 max-w-2xl text-sm text-zinc-500">
-            Add people, update their profiles, or archive anyone who is no longer on the team. Archived people can be restored later.
+            Add people, update their profiles, or archive anyone who is no longer on the team. Archived people can be restored unless they deleted their own account.
           </p>
         </div>
         <button
+          ref={addPersonButtonRef}
           type="button"
+          aria-expanded={showAddForm}
+          aria-controls="add-person-form"
           onClick={() => {
             clearFeedback();
-            setShowAddForm((current) => !current);
+            if (showAddForm) closeAddForm();
+            else setShowAddForm(true);
           }}
           className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-black text-black transition hover:bg-cyan-200 sm:w-auto"
         >
@@ -379,10 +421,10 @@ export function AccountManager({ students, teams = [] }: AccountManagerProps) {
       </div>
 
       {showAddForm ? (
-        <form onSubmit={addStudent} className="border-b border-court-line bg-court-elevated/40 p-4 sm:p-5">
+        <form id="add-person-form" onSubmit={addStudent} aria-labelledby="add-person-heading" aria-busy={adding || undefined} className="border-b border-court-line bg-court-elevated/40 p-4 sm:p-5">
           <div className="mb-4 flex items-center gap-2">
             <Plus className="h-4 w-4 text-cyan-300" aria-hidden="true" />
-            <h3 className="text-sm font-semibold text-white">Add someone to the tracker</h3>
+            <h3 id="add-person-heading" className="text-sm font-semibold text-white">Add someone to the tracker</h3>
           </div>
           <div className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-6">
             <FormField label="Full name" className="lg:col-span-2">
@@ -452,10 +494,7 @@ export function AccountManager({ students, teams = [] }: AccountManagerProps) {
           <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <button
               type="button"
-              onClick={() => {
-                setShowAddForm(false);
-                setNewStudent(emptyStudent);
-              }}
+              onClick={closeAddForm}
               className="h-11 rounded-md border border-court-line px-4 text-sm font-bold text-zinc-300 hover:bg-court-panel"
             >
               Cancel
@@ -463,18 +502,18 @@ export function AccountManager({ students, teams = [] }: AccountManagerProps) {
             <button
               type="submit"
               disabled={adding}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-black text-slate-950 transition hover:bg-cyan-200 disabled:opacity-60"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-black text-black transition hover:bg-cyan-200 disabled:opacity-60"
             >
               {adding ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <UserPlus className="h-4 w-4" aria-hidden="true" />}
-              Add person
+              {adding ? "Adding person…" : "Add person"}
             </button>
           </div>
         </form>
       ) : null}
 
-      <div aria-live="polite" className="px-4 pt-4 sm:px-5">
-        {message ? <div className="rounded-md border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-200">{message}</div> : null}
-        {error ? <div className="rounded-md border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200">{error}</div> : null}
+      <div className="px-4 pt-4 sm:px-5">
+        {message ? <div role="status" className="rounded-md border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-200">{message}</div> : null}
+        {error ? <div role="alert" className="rounded-md border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200">{error}</div> : null}
       </div>
 
       <div className="grid min-w-0 gap-3 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
@@ -489,7 +528,7 @@ export function AccountManager({ students, teams = [] }: AccountManagerProps) {
             placeholder="Search by name, email, event, grade, or role"
           />
         </label>
-        <div className="grid grid-cols-3 rounded-md border border-court-line bg-court-elevated p-1" aria-label="People status filter">
+        <div className="grid grid-cols-3 rounded-md border border-court-line bg-court-elevated p-1" role="group" aria-label="People status filter">
           {(["active", "archived", "all"] as StatusFilter[]).map((status) => (
             <button
               key={status}
@@ -507,7 +546,7 @@ export function AccountManager({ students, teams = [] }: AccountManagerProps) {
       </div>
 
       {loadingPeople ? (
-        <div className="mx-4 mb-4 flex items-center justify-center gap-2 rounded-md border border-court-line p-4 text-sm text-zinc-500 sm:mx-5 sm:mb-5">
+        <div className="mx-4 mb-4 flex items-center justify-center gap-2 rounded-md border border-court-line p-4 text-sm text-zinc-500 sm:mx-5 sm:mb-5" role="status">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           Loading active and archived people…
         </div>
@@ -516,12 +555,15 @@ export function AccountManager({ students, teams = [] }: AccountManagerProps) {
       {!loadingPeople && visibleRows.length ? (
         <div className="space-y-3 px-4 pb-4 sm:px-5 sm:pb-5">
           {visibleRows.map((row) => (
-            <article key={row.id} className="min-w-0 rounded-md border border-court-line bg-court-elevated/50 p-4">
+            <article key={row.id} className="min-w-0 rounded-md border border-court-line bg-court-elevated/50 p-4" aria-labelledby={`person-${row.id}-heading`} aria-busy={savingId === row.id || restoringId === row.id || undefined}>
+              <form onSubmit={(event) => { event.preventDefault(); if (editingId === row.id) void save(row); }}>
               <div className="mb-4 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="truncate text-sm font-semibold text-white">{row.name}</h3>
-                    {row.isArchived ? (
+                    <h3 id={`person-${row.id}-heading`} className="truncate text-sm font-semibold text-white">{row.name}</h3>
+                    {row.accountDeleted ? (
+                      <span className="rounded-full border border-red-300/30 bg-red-300/10 px-2 py-0.5 text-[10px] font-black uppercase text-red-200">Account deleted</span>
+                    ) : row.isArchived ? (
                       <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-2 py-0.5 text-[10px] font-black uppercase text-amber-200">Archived</span>
                     ) : null}
                     <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${row.hasLogin ? "border-emerald-300/30 bg-emerald-300/10 text-emerald-200" : "border-court-line bg-court-panel text-zinc-500"}`}>
@@ -530,24 +572,26 @@ export function AccountManager({ students, teams = [] }: AccountManagerProps) {
                   </div>
                   <p className="mt-0.5 truncate text-xs text-zinc-500">{row.email}</p>
                 </div>
-                {row.isArchived ? (
+                {row.isArchived && !row.accountDeleted ? (
                   <button
                     type="button"
                     onClick={() => restoreStudent(row)}
                     disabled={restoringId === row.id}
                     className="inline-flex h-10 w-full shrink-0 items-center justify-center gap-2 rounded-md border border-court-line px-3 text-xs font-black text-zinc-300 transition hover:border-cyan-400 hover:text-white disabled:opacity-60 sm:w-auto"
                   >
-                    {restoringId === row.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-                    Restore
+                    {restoringId === row.id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RotateCcw className="h-4 w-4" aria-hidden="true" />}
+                    {restoringId === row.id ? "Restoring…" : "Restore"}
                   </button>
+                ) : row.accountDeleted ? (
+                  <span className="inline-flex min-h-10 shrink-0 items-center rounded-md border border-red-300/20 px-3 text-xs font-semibold text-red-200">
+                    Cannot restore
+                  </span>
                 ) : editingId !== row.id ? (
                   <div className="grid w-full shrink-0 grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
                     <button
+                      id={`edit-person-${row.id}`}
                       type="button"
-                      onClick={() => {
-                        clearFeedback();
-                        setEditingId(row.id);
-                      }}
+                      onClick={() => beginEditing(row.id)}
                       className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-court-line px-3 text-xs font-black text-zinc-300 transition hover:border-cyan-400 hover:text-white"
                     >
                       <Pencil className="h-4 w-4" aria-hidden="true" />
@@ -588,25 +632,22 @@ export function AccountManager({ students, teams = [] }: AccountManagerProps) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setEditingId(null);
-                      void loadAllPeople();
-                    }}
+                    onClick={() => closeEditor(row.id, true)}
                     className="h-10 rounded-md border border-court-line px-3 text-xs font-black text-zinc-300 transition hover:bg-court-panel hover:text-white"
                   >
                     Cancel
                   </button>
                   <button
-                    type="button"
-                    onClick={() => save(row)}
+                    type="submit"
                     disabled={savingId === row.id}
                     className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white px-4 text-xs font-black uppercase text-black transition hover:bg-cyan-200 disabled:opacity-60"
                   >
-                    {savingId === row.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                    Save changes
+                    {savingId === row.id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
+                    {savingId === row.id ? "Saving…" : "Save changes"}
                   </button>
                 </div>
               ) : null}
+              </form>
             </article>
           ))}
         </div>
@@ -618,30 +659,40 @@ export function AccountManager({ students, teams = [] }: AccountManagerProps) {
       ) : null}
 
       {studentToArchive ? (
-        <div className="fixed inset-0 z-50 grid place-items-end bg-slate-950/70 p-0 backdrop-blur-sm sm:place-items-center sm:p-4" role="presentation">
-          <div role="dialog" aria-modal="true" aria-labelledby="archive-person-title" className="max-h-[calc(100dvh-1rem)] w-full overflow-y-auto rounded-t-xl border border-court-line bg-court-panel p-5 shadow-2xl sm:max-w-md sm:rounded-md">
+        <AdminDialog
+          labelledBy="archive-person-title"
+          describedBy="archive-person-description"
+          initialFocusRef={keepPersonButtonRef}
+          closeDisabled={archiving}
+          busy={archiving}
+          onClose={() => setStudentToArchive(null)}
+          placement="bottom"
+          panelClassName="max-w-md rounded-t-xl p-5 sm:rounded-md"
+        >
+          <form onSubmit={(event) => { event.preventDefault(); void archiveStudent(); }}>
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h3 id="archive-person-title" className="text-lg font-semibold text-white">Archive {studentToArchive.name}?</h3>
-                <p className="mt-2 text-sm leading-6 text-zinc-500">
+                <p id="archive-person-description" className="mt-2 text-sm leading-6 text-zinc-500">
                   They will be hidden from active lists and cannot sign in. Their history stays intact, and an admin can restore them later.
                 </p>
               </div>
-              <button type="button" onClick={() => setStudentToArchive(null)} className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-zinc-500 hover:bg-court-elevated hover:text-white" aria-label="Close">
-                <X className="h-4 w-4" />
+              <button type="button" onClick={() => setStudentToArchive(null)} disabled={archiving} className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-zinc-500 hover:bg-court-elevated hover:text-white disabled:opacity-60" aria-label="Close archive confirmation">
+                <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
+            {error ? <div className="mt-4 rounded-md border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200" role="alert">{error}</div> : null}
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button type="button" onClick={() => setStudentToArchive(null)} disabled={archiving} className="h-11 rounded-md border border-court-line px-4 text-sm font-bold text-zinc-300 hover:bg-court-elevated disabled:opacity-60">
+              <button ref={keepPersonButtonRef} type="button" onClick={() => setStudentToArchive(null)} disabled={archiving} className="h-11 rounded-md border border-court-line px-4 text-sm font-bold text-zinc-300 hover:bg-court-elevated disabled:opacity-60">
                 Keep person
               </button>
-              <button type="button" onClick={archiveStudent} disabled={archiving} className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-red-400 px-4 text-sm font-black text-slate-950 hover:bg-red-300 disabled:opacity-60">
-                {archiving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />}
-                Archive person
+              <button type="submit" disabled={archiving} className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-red-400 px-4 text-sm font-black text-black hover:bg-red-300 disabled:opacity-60">
+                {archiving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Archive className="h-4 w-4" aria-hidden="true" />}
+                {archiving ? "Archiving…" : "Archive person"}
               </button>
             </div>
-          </div>
-        </div>
+          </form>
+        </AdminDialog>
       ) : null}
     </section>
   );

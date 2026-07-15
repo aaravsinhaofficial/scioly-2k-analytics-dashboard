@@ -70,16 +70,17 @@ export function PointHistoryTable({
       {message ? <div className="border-b border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-300" role="status">{message}</div> : null}
       {error ? <div className="border-b border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-300" role="alert">{error}</div> : null}
       {rows.length > 0 ? (
-        <div className="overflow-x-auto">
+        <div role="region" tabIndex={0} aria-label="Practice point submission history table" className="overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-400" aria-busy={removingId !== null}>
           <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+            <caption className="sr-only">Practice point submissions, review status, and available actions</caption>
             <thead className="bg-court-elevated text-xs font-medium text-zinc-500">
               <tr>
-                <th className="px-4 py-3">Submitted</th>
-                <th className="px-4 py-3">Activity</th>
-                <th className="px-4 py-3 text-right">Points</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Review</th>
-                {showActions ? <th className="px-4 py-3 text-right">Action</th> : null}
+                <th scope="col" className="px-4 py-3">Submitted</th>
+                <th scope="col" className="px-4 py-3">Activity</th>
+                <th scope="col" className="px-4 py-3 text-right">Points</th>
+                <th scope="col" className="px-4 py-3">Status</th>
+                <th scope="col" className="px-4 py-3">Review</th>
+                {showActions ? <th scope="col" className="px-4 py-3 text-right">Action</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -92,7 +93,7 @@ export function PointHistoryTable({
                 return (
                   <tr key={row.id} className="border-t border-court-line align-middle">
                     <td className="px-4 py-3 text-zinc-500">{formatDate(row.date)}</td>
-                    <td className="px-4 py-3 font-medium text-white">{row.activity}</td>
+                    <th scope="row" className="px-4 py-3 text-left font-medium text-white">{row.activity}</th>
                     <td className="px-4 py-3 text-right font-semibold tabular-nums text-white">{formatNumber(row.points)}</td>
                     <td className="px-4 py-3"><StatusBadge status={row.status} /></td>
                     <td className="max-w-64 px-4 py-3 text-zinc-500">
@@ -102,11 +103,12 @@ export function PointHistoryTable({
                       <td className="px-4 py-2 text-right">
                         {removable ? (
                           isConfirming ? (
-                            <span className="inline-flex items-center justify-end gap-2">
+                            <span className="inline-flex items-center justify-end gap-2" role="group" aria-label={`${actionLabel} ${row.activity} submission`}>
                               <button
                                 type="button"
                                 onClick={() => setConfirmingId(null)}
                                 disabled={isRemoving}
+                                autoFocus
                                 className="min-h-10 rounded-md px-3 text-xs font-medium text-zinc-600 hover:bg-court-elevated hover:text-white"
                               >
                                 Cancel
@@ -115,6 +117,7 @@ export function PointHistoryTable({
                                 type="button"
                                 onClick={() => remove(row)}
                                 disabled={isRemoving}
+                                aria-label={`Confirm ${actionLabel.toLowerCase()} for ${row.activity}`}
                                 className="min-h-10 rounded-md bg-red-300/10 px-3 text-xs font-semibold text-red-300 hover:bg-red-300/20 disabled:text-zinc-500"
                               >
                                 {isRemoving ? "Removing…" : `Confirm ${actionLabel.toLowerCase()}`}
@@ -128,6 +131,7 @@ export function PointHistoryTable({
                                 setError(null);
                                 setMessage(null);
                               }}
+                              aria-label={`${actionLabel} ${row.activity} submission from ${formatDate(row.date)}`}
                               className="inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-xs font-medium text-red-300 hover:bg-red-300/10"
                             >
                               <Trash2 className="h-4 w-4" aria-hidden="true" />

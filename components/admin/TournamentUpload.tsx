@@ -33,11 +33,15 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
   const [preview, setPreview] = useState<TournamentImportPreview | null>(null);
   const [participantSelections, setParticipantSelections] = useState<Record<string, string[]>>({});
   const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<"preview" | "confirm" | "import" | null>(null);
   const [isPending, startTransition] = useTransition();
   const canUseManualDump = currentUser.role === "admin";
 
   function parse(commit = false, includeSelections = false) {
     setMessage(null);
+    setError(null);
+    setPendingAction(commit ? "import" : includeSelections ? "confirm" : "preview");
     startTransition(async () => {
       const payload = {
         rawInput,
@@ -82,10 +86,13 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
             ])));
           }
         }
-        setMessage(result.message ?? result.error ?? null);
+        if (result.ok) setMessage(result.message ?? (commit ? "Tournament results imported." : "Preview ready."));
+        else setError(result.error ?? "Tournament import failed.");
         if (commit && result.ok) router.refresh();
       } catch (caught) {
-        setMessage(caught instanceof Error ? caught.message : "Tournament import failed.");
+        setError(caught instanceof Error ? caught.message : "Tournament import failed.");
+      } finally {
+        setPendingAction(null);
       }
     });
   }
@@ -98,12 +105,14 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
       setPreview(null);
       setParticipantSelections({});
       setMessage(`${file.name} loaded.`);
+      setError(null);
     });
   }
 
   function switchMode(nextMode: TournamentSourceType) {
     if (nextMode === "manual" && !canUseManualDump) {
-      setMessage("Manual tournament dumps are admin-only.");
+      setError("Manual tournament dumps are admin-only.");
+      setMessage(null);
       return;
     }
     setMode(nextMode);
@@ -111,6 +120,7 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
     setPreview(null);
     setParticipantSelections({});
     setMessage(null);
+    setError(null);
   }
 
   function updateSource(update: () => void) {
@@ -118,6 +128,7 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
     setPreview(null);
     setParticipantSelections({});
     setMessage(null);
+    setError(null);
   }
 
   function toggleParticipant(rowKey: string, studentId: string) {
@@ -132,19 +143,21 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
 
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_440px]">
-      <section className="rounded-md border border-court-line bg-court-panel">
+      <section className="rounded-md border border-court-line bg-court-panel" aria-labelledby="tournament-import-heading" aria-busy={isPending || undefined}>
         <div className="border-b border-court-line p-5">
           <div className="flex items-center gap-2 text-xs font-black uppercase text-cyan-300">
             <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
             Duosmium Parser
           </div>
-          <h2 className="mt-1 text-xl font-semibold text-white">Tournament import</h2>
+          <h2 id="tournament-import-heading" className="mt-1 text-xl font-semibold text-white">Tournament import</h2>
+          <p id="tournament-import-instructions" className="mt-1 text-sm leading-6 text-zinc-500">Choose a source, enter tournament details, then parse and review the preview before importing any results.</p>
         </div>
         <div className="space-y-4 p-5">
-          <div className="inline-flex rounded-md border border-court-line bg-court-elevated p-1">
+          <div className="inline-flex rounded-md border border-court-line bg-court-elevated p-1" role="group" aria-label="Tournament source format">
             <button
               type="button"
               onClick={() => switchMode("duosmium_csv")}
+              aria-pressed={mode === "duosmium_csv"}
               className={cn(
                 "h-9 rounded px-3 text-xs font-black uppercase text-zinc-600 transition hover:text-white",
                 mode === "duosmium_csv" && "bg-white text-black hover:text-black"
@@ -155,6 +168,7 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
             <button
               type="button"
               onClick={() => switchMode("manual")}
+              aria-pressed={mode === "manual"}
               className={cn(
                 "h-9 rounded px-3 text-xs font-black uppercase text-zinc-600 transition hover:text-white disabled:bg-court-elevated disabled:text-zinc-500 disabled:opacity-100",
                 mode === "manual" && "bg-white text-black hover:text-black"
@@ -207,13 +221,15 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
 
           {mode === "duosmium_csv" ? (
             <label className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-md border border-court-control px-4 text-sm font-black uppercase text-zinc-600 transition hover:border-cyan-400 hover:text-white">
-              <FileSpreadsheet className="h-4 w-4" />
+              <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
               Load CSV
               <input type="file" accept=".csv,text/csv" onChange={loadFile} className="sr-only" />
             </label>
           ) : null}
 
+          <label htmlFor="tournament-source" className="block text-xs font-black uppercase text-zinc-500">{mode === "manual" ? "Manual tournament source" : "CSV source"}</label>
           <textarea
+            id="tournament-source"
             value={rawInput}
             onChange={(event) => updateSource(() => setRawInput(event.target.value))}
             rows={16}
@@ -223,6 +239,7 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
                 ? "Admin-only manual dump, e.g. Water Quality: Jack Lee; Mrinal Rao A #2"
                 : "Paste or load a Duosmium leaderboard CSV with Event, Rank, School, Team, Students, and Medal columns"
             }
+            aria-describedby="tournament-import-instructions"
           />
 
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -232,8 +249,8 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
               disabled={isPending || rawInput.trim().length === 0}
               className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-black uppercase text-black transition hover:bg-cyan-200 disabled:border disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500 disabled:opacity-100"
             >
-              {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
-              Parse Preview
+              {pendingAction === "preview" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ClipboardList className="h-4 w-4" aria-hidden="true" />}
+              {pendingAction === "preview" ? "Parsing preview…" : "Parse preview"}
             </button>
             <button
               type="button"
@@ -241,8 +258,8 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
               disabled={isPending || !preview?.canCommit}
               className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-cyan-400/50 px-4 text-sm font-black uppercase text-cyan-200 transition hover:bg-cyan-400 hover:text-black disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500 disabled:opacity-100"
             >
-              <Upload className="h-4 w-4" />
-              Import matched results
+              {pendingAction === "import" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4" aria-hidden="true" />}
+              {pendingAction === "import" ? "Importing…" : "Import matched results"}
             </button>
             <button
               type="button"
@@ -256,12 +273,13 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
               Sample
             </button>
           </div>
-          {message ? <div className="rounded-md border border-court-line bg-court-elevated p-3 text-sm text-zinc-600">{message}</div> : null}
+          {message ? <div role="status" className="rounded-md border border-emerald-300/30 bg-emerald-300/10 p-3 text-sm text-emerald-300">{message}</div> : null}
+          {error ? <div role="alert" className="rounded-md border border-red-300/30 bg-red-300/10 p-3 text-sm text-red-300">{error}</div> : null}
         </div>
       </section>
 
-      <section className="rounded-md border border-court-line bg-court-panel p-5">
-        <h2 className="text-xl font-semibold text-white">Match preview</h2>
+      <section className="rounded-md border border-court-line bg-court-panel p-5" aria-labelledby="match-preview-heading">
+        <h2 id="match-preview-heading" className="text-xl font-semibold text-white">Match preview</h2>
         {preview ? (
           <div className="mt-4 space-y-4">
             <div className="rounded-md border border-court-line bg-court-elevated p-4">
@@ -291,8 +309,8 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
               </div>
             </div>
             <div>
-              <div className="mb-2 text-xs font-black uppercase text-zinc-500">Event Rows</div>
-              <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+              <h3 id="event-rows-heading" className="mb-2 text-xs font-black uppercase text-zinc-500">Event rows</h3>
+              <div className="max-h-72 space-y-2 overflow-y-auto pr-1" role="region" aria-labelledby="event-rows-heading" tabIndex={0}>
                 {preview.performances.map((performance, index) => (
                   <div key={`${performance.studentNames.join("-")}-${performance.eventName}-${index}`} className="rounded-md border border-court-line bg-court-elevated p-3 text-sm">
                     <div className="flex items-center justify-between gap-3">
@@ -334,18 +352,18 @@ export function TournamentUpload({ currentUser }: TournamentUploadProps) {
               </div>
             </div>
             {preview.warnings.length > 0 || preview.missingFields.length > 0 ? (
-              <div className={cn("rounded-md border p-3 text-sm", preview.missingFields.length > 0 ? "border-amber-300/40 bg-amber-300/10 text-amber-100" : "border-court-line bg-court-elevated text-zinc-600")}>
+              <div role={preview.missingFields.length > 0 ? "alert" : "status"} className={cn("rounded-md border p-3 text-sm", preview.missingFields.length > 0 ? "border-amber-300/40 bg-amber-300/10 text-amber-100" : "border-court-line bg-court-elevated text-zinc-600")}>
                 {[...preview.warnings, ...preview.missingFields].join(" ")}
               </div>
             ) : null}
             {!preview.canCommit ? (
-              <div className="rounded-md border border-amber-300/40 bg-amber-300/10 p-3 text-sm text-amber-200">
+              <div className="rounded-md border border-amber-300/40 bg-amber-300/10 p-3 text-sm text-amber-200" role="alert">
                 <div className="font-semibold">{preview.blockers.length} match{preview.blockers.length === 1 ? "" : "es"} need review</div>
                 <ul className="mt-2 list-disc space-y-1 pl-5">{preview.blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}</ul>
-                <button type="button" onClick={() => parse(false, true)} disabled={isPending} className="mt-3 inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-semibold text-black disabled:border disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500 disabled:opacity-100">Confirm selected matches</button>
+                <button type="button" onClick={() => parse(false, true)} disabled={isPending} className="mt-3 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black disabled:border disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500 disabled:opacity-100">{pendingAction === "confirm" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}{pendingAction === "confirm" ? "Confirming…" : "Confirm selected matches"}</button>
               </div>
             ) : (
-              <div className="rounded-md border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-200">All local results are matched and ready to import.</div>
+              <div className="rounded-md border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-200" role="status">All local results are matched and ready to import.</div>
             )}
           </div>
         ) : (

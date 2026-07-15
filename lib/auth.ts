@@ -177,6 +177,13 @@ export async function ensureStudentProfile(input: {
     return null;
   }
 
+  // OAuth must honor the same invite-only policy as email signup. Existing
+  // roster entries can still attach their auth account above, and the built-in
+  // bootstrap admin can establish the first administrative profile.
+  if (!publicSignupEnabled() && defaultRole !== "admin") {
+    return null;
+  }
+
   const { data, error } = await admin
     .from("students")
     .upsert(

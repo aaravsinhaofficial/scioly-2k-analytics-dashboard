@@ -6,6 +6,7 @@ import { GripVertical, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-rea
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ReadinessBadge } from "@/components/ReadinessBadge";
+import { AdminDialog } from "@/components/admin/AdminDialog";
 
 interface RosterMember {
   id: string;
@@ -79,15 +80,15 @@ function TeamDropColumn({ group, groups, onMove, onEdit, onRemove }: { group: Ro
   const isUnassigned = group.id === "unassigned";
 
   return (
-    <section id={`admin-team-${group.id}`} ref={setNodeRef} className={`scroll-mt-24 min-w-0 rounded-md border bg-court-panel p-4 transition ${isOver ? "border-cyan-400" : "border-court-line"}`}>
+    <section id={`admin-team-${group.id}`} ref={setNodeRef} aria-labelledby={`admin-team-${group.id}-heading`} className={`scroll-mt-24 min-w-0 rounded-md border bg-court-panel p-4 transition ${isOver ? "border-cyan-400" : "border-court-line"}`}>
       <div className="mb-4 flex min-w-0 items-start justify-between gap-3">
-        <div className="min-w-0"><div className="break-words text-sm font-semibold text-white">{group.label}</div><div className="mt-1 text-xs text-zinc-500">{group.members.length} members</div></div>
+        <div className="min-w-0"><h3 id={`admin-team-${group.id}-heading`} className="break-words text-sm font-semibold text-white">{group.label}</h3><div className="mt-1 text-xs text-zinc-500">{group.members.length} members</div></div>
         <div className="flex shrink-0 items-center gap-2">
           <ReadinessBadge value={group.readiness} size="sm" />
           {!isUnassigned ? (
             <>
-              <button type="button" onClick={() => onEdit(group)} className="grid h-10 w-10 place-items-center rounded-md text-zinc-500 hover:bg-court-elevated hover:text-white" aria-label={`Edit ${group.label}`}><Pencil className="h-4 w-4" /></button>
-              <button type="button" onClick={() => onRemove(group)} className="grid h-10 w-10 place-items-center rounded-md text-red-300 hover:bg-red-300/10" aria-label={`Remove ${group.label}`}><Trash2 className="h-4 w-4" /></button>
+              <button type="button" onClick={() => onEdit(group)} className="grid h-10 w-10 place-items-center rounded-md text-zinc-500 hover:bg-court-elevated hover:text-white" aria-label={`Edit ${group.label}`}><Pencil className="h-4 w-4" aria-hidden="true" /></button>
+              <button type="button" onClick={() => onRemove(group)} className="grid h-10 w-10 place-items-center rounded-md text-red-300 hover:bg-red-300/10" aria-label={`Remove ${group.label}`}><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
             </>
           ) : null}
         </div>
@@ -112,6 +113,8 @@ export function RosterManager({ rosters }: RosterManagerProps) {
   const [teamToRemove, setTeamToRemove] = useState<RosterGroup | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const previousRosters = useRef(rosters);
+  const teamNameRef = useRef<HTMLInputElement>(null);
+  const deleteConfirmationRef = useRef<HTMLInputElement>(null);
   const realTeams = useMemo(() => groups.filter((group) => group.id !== "unassigned"), [groups]);
   const expectedDeleteName = teamToRemove?.name || teamToRemove?.label || "";
 
@@ -290,13 +293,13 @@ export function RosterManager({ rosters }: RosterManagerProps) {
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 rounded-md border border-court-line bg-court-panel p-4 sm:p-5 md:flex-row md:items-center md:justify-between">
-        <div className="min-w-0"><h2 className="text-xl font-semibold text-white">Teams and rosters</h2><p className="mt-1 text-sm leading-6 text-zinc-500">Add, rename, edit, or remove any team. Use Move to on mobile or drag on larger screens, then save roster changes. Team changes can be restored from the audit log.</p></div>
+        <div className="min-w-0"><h2 id="teams-rosters-heading" className="text-xl font-semibold text-white">Teams and rosters</h2><p className="mt-1 text-sm leading-6 text-zinc-500">Add, rename, edit, or remove any team. Use Move to on mobile or drag on larger screens, then save roster changes. Team changes can be restored from the audit log.</p></div>
         <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto">
           <button type="button" onClick={openCreateTeam} disabled={saving || teamSaving || removing} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-court-line px-4 text-sm font-semibold text-white hover:bg-court-elevated md:w-auto">
-            <Plus className="h-4 w-4" /> Add team
+            <Plus className="h-4 w-4" aria-hidden="true" /> Add team
           </button>
           <button type="button" onClick={() => void saveRosters()} disabled={saving || !rosterDirty} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} {rosterDirty ? "Save roster" : "Roster saved"}
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />} {saving ? "Saving roster…" : rosterDirty ? "Save roster" : "Roster saved"}
           </button>
         </div>
       </div>
@@ -310,55 +313,73 @@ export function RosterManager({ rosters }: RosterManagerProps) {
       </DndContext>
 
       {editor ? (
-        <div className="app-overlay fixed inset-0 z-50 grid place-items-center overflow-y-auto p-4" role="dialog" aria-modal="true" aria-labelledby="team-editor-heading">
-          <form className="my-auto w-full max-w-lg rounded-md border border-court-line bg-court-panel p-5 shadow-panel" onSubmit={(event) => { event.preventDefault(); void saveTeam(); }}>
+        <AdminDialog
+          labelledBy="team-editor-heading"
+          describedBy="team-editor-description"
+          initialFocusRef={teamNameRef}
+          closeDisabled={teamSaving}
+          busy={teamSaving}
+          onClose={() => setEditor(null)}
+          panelClassName="max-w-lg p-5"
+        >
+          <form onSubmit={(event) => { event.preventDefault(); void saveTeam(); }}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h2 id="team-editor-heading" className="text-xl font-semibold text-white">{editor.mode === "create" ? "Add team" : "Edit team"}</h2>
-                <p className="mt-1 text-sm leading-6 text-zinc-500">The display name appears across roster and team views. School and designation are used to match tournament imports.</p>
+                <p id="team-editor-description" className="mt-1 text-sm leading-6 text-zinc-500">The display name appears across roster and team views. School and designation are used to match tournament imports.</p>
               </div>
-              <button type="button" onClick={() => setEditor(null)} disabled={teamSaving} className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-zinc-500 hover:bg-court-elevated hover:text-white" aria-label="Close team editor"><X className="h-4 w-4" /></button>
+              <button type="button" onClick={() => setEditor(null)} disabled={teamSaving} className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-zinc-500 hover:bg-court-elevated hover:text-white" aria-label="Close team editor"><X className="h-4 w-4" aria-hidden="true" /></button>
             </div>
             <div className="mt-5 grid min-w-0 gap-4">
               <label className="grid min-w-0 gap-1.5 text-sm font-medium text-white">
                 Team name
-                <input required minLength={2} maxLength={80} value={editor.name} onChange={(event) => setEditor((current) => current ? { ...current, name: event.target.value } : current)} placeholder="Tompkins A" className="min-h-11 w-full min-w-0 rounded-md border border-court-line bg-court-elevated px-3 text-white" />
+                <input ref={teamNameRef} required minLength={2} maxLength={80} disabled={teamSaving} value={editor.name} onChange={(event) => setEditor((current) => current ? { ...current, name: event.target.value } : current)} placeholder="Tompkins A" className="min-h-11 w-full min-w-0 rounded-md border border-court-line bg-court-elevated px-3 text-white" />
               </label>
               <label className="grid min-w-0 gap-1.5 text-sm font-medium text-white">
                 School
-                <input required minLength={2} maxLength={120} value={editor.schoolName} onChange={(event) => setEditor((current) => current ? { ...current, schoolName: event.target.value } : current)} placeholder="Obra D Tompkins High School" className="min-h-11 w-full min-w-0 rounded-md border border-court-line bg-court-elevated px-3 text-white" />
+                <input required minLength={2} maxLength={120} disabled={teamSaving} value={editor.schoolName} onChange={(event) => setEditor((current) => current ? { ...current, schoolName: event.target.value } : current)} placeholder="Obra D Tompkins High School" className="min-h-11 w-full min-w-0 rounded-md border border-court-line bg-court-elevated px-3 text-white" />
               </label>
               <label className="grid min-w-0 gap-1.5 text-sm font-medium text-white">
                 Designation
-                <input required minLength={1} maxLength={20} value={editor.designation} onChange={(event) => setEditor((current) => current ? { ...current, designation: event.target.value.toUpperCase() } : current)} placeholder="A" className="min-h-11 w-full min-w-0 rounded-md border border-court-line bg-court-elevated px-3 text-white" />
+                <input required minLength={1} maxLength={20} disabled={teamSaving} value={editor.designation} onChange={(event) => setEditor((current) => current ? { ...current, designation: event.target.value.toUpperCase() } : current)} placeholder="A" className="min-h-11 w-full min-w-0 rounded-md border border-court-line bg-court-elevated px-3 text-white" />
               </label>
             </div>
+            {error ? <div className="mt-4 rounded-md border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-300" role="alert">{error}</div> : null}
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button type="button" onClick={() => setEditor(null)} disabled={teamSaving} className="min-h-11 rounded-md border border-court-line px-4 text-sm font-medium text-zinc-600">Cancel</button>
               <button type="submit" disabled={teamSaving} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200 disabled:opacity-60">
-                {teamSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : editor.mode === "create" ? <Plus className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+                {teamSaving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : editor.mode === "create" ? <Plus className="h-4 w-4" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
                 {teamSaving ? "Saving…" : editor.mode === "create" ? "Add team" : "Save team"}
               </button>
             </div>
           </form>
-        </div>
+        </AdminDialog>
       ) : null}
 
       {teamToRemove ? (
-        <div className="app-overlay fixed inset-0 z-50 grid place-items-center overflow-y-auto p-4" role="dialog" aria-modal="true" aria-labelledby="remove-team-heading">
-          <div className="my-auto w-full max-w-md rounded-md border border-court-line bg-court-panel p-5 shadow-panel">
+        <AdminDialog
+          labelledBy="remove-team-heading"
+          describedBy="remove-team-description"
+          initialFocusRef={deleteConfirmationRef}
+          closeDisabled={removing}
+          busy={removing}
+          onClose={() => { setTeamToRemove(null); setDeleteConfirmation(""); }}
+          panelClassName="max-w-md p-5"
+        >
+          <form onSubmit={(event) => { event.preventDefault(); void removeTeam(); }}>
             <h2 id="remove-team-heading" className="break-words text-xl font-semibold text-white">Remove {expectedDeleteName}?</h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-500">Its {teamToRemove.members.length} members will become unassigned. Tournament history remains intact, and an admin can restore the team and its roster from the audit log.</p>
+            <p id="remove-team-description" className="mt-2 text-sm leading-6 text-zinc-500">Its {teamToRemove.members.length} members will become unassigned. Tournament history remains intact, and an admin can restore the team and its roster from the audit log.</p>
             <label className="mt-4 grid min-w-0 gap-1.5 text-sm font-medium text-white">
               Type <span className="break-all font-semibold text-red-300">{expectedDeleteName}</span> to confirm
-              <input autoComplete="off" value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} className="min-h-11 w-full min-w-0 rounded-md border border-court-line bg-court-elevated px-3 text-white" />
+              <input ref={deleteConfirmationRef} required autoComplete="off" disabled={removing} value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} className="min-h-11 w-full min-w-0 rounded-md border border-court-line bg-court-elevated px-3 text-white" />
             </label>
+            {error ? <div className="mt-4 rounded-md border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-300" role="alert">{error}</div> : null}
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button type="button" onClick={() => { setTeamToRemove(null); setDeleteConfirmation(""); }} disabled={removing} className="min-h-11 rounded-md border border-court-line px-4 text-sm font-medium text-zinc-600">Cancel</button>
-              <button type="button" onClick={() => void removeTeam()} disabled={removing || deleteConfirmation.trim().toLocaleLowerCase() !== expectedDeleteName.toLocaleLowerCase()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-red-400 px-4 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50"><Trash2 className="h-4 w-4" /> {removing ? "Removing…" : "Remove team"}</button>
+              <button type="submit" disabled={removing || deleteConfirmation.trim().toLocaleLowerCase() !== expectedDeleteName.toLocaleLowerCase()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-red-400 px-4 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50">{removing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Trash2 className="h-4 w-4" aria-hidden="true" />} {removing ? "Removing…" : "Remove team"}</button>
             </div>
-          </div>
-        </div>
+          </form>
+        </AdminDialog>
       ) : null}
     </div>
   );

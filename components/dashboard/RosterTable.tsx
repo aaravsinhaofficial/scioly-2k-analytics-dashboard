@@ -97,7 +97,7 @@ export function RosterTable({ players }: RosterTableProps) {
               Team standings
             </div>
             <h2 id="roster-heading" className="mt-1 text-xl font-semibold text-white sm:text-2xl">Team roster</h2>
-            <p className="mt-1 text-sm text-zinc-500">{sortedPlayers.length} of {players.length} students</p>
+            <p className="mt-1 text-sm text-zinc-500" role="status" aria-live="polite">Showing {sortedPlayers.length} of {players.length} students</p>
           </div>
           <span className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md border border-court-line px-3 text-sm font-medium text-zinc-600 transition-colors group-open/disclosure:text-white">
             <span className="hidden sm:inline">Roster details</span>
@@ -108,19 +108,21 @@ export function RosterTable({ players }: RosterTableProps) {
         <div className="border-y border-court-line p-4 sm:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-end">
             <div className="flex flex-col gap-2 sm:flex-row">
-              <label className="relative min-w-0 sm:w-64">
-                <span className="sr-only">Search students</span>
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" aria-hidden="true" />
-                <input
-                  type="search"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search students or events"
-                  className="h-11 w-full rounded-md border border-court-line bg-court-panel pl-9 pr-3 text-sm text-white outline-none transition focus:border-cyan-400"
-                />
+              <label className="grid min-w-0 gap-1.5 text-xs font-medium text-zinc-500 sm:w-64">
+                Search roster
+                <span className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" aria-hidden="true" />
+                  <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Students or events"
+                    className="h-11 w-full rounded-md border border-court-line bg-court-panel pl-9 pr-3 text-sm text-white outline-none transition focus:border-cyan-400"
+                  />
+                </span>
               </label>
-              <label>
-                <span className="sr-only">Filter by team</span>
+              <label className="grid gap-1.5 text-xs font-medium text-zinc-500">
+                Team
                 <select
                   value={teamFilter}
                   onChange={(event) => setTeamFilter(event.target.value)}
@@ -133,7 +135,8 @@ export function RosterTable({ players }: RosterTableProps) {
               <button
                 type="button"
                 onClick={() => setShowAllColumns((current) => !current)}
-                className="hidden h-11 items-center justify-center gap-2 rounded-md border border-court-line px-3 text-sm font-medium text-zinc-600 transition hover:border-cyan-400 hover:text-white md:inline-flex"
+                className="hidden h-11 items-center justify-center gap-2 self-end rounded-md border border-court-line px-3 text-sm font-medium text-zinc-600 transition hover:border-cyan-400 hover:text-white md:inline-flex"
+                aria-pressed={showAllColumns}
               >
                 <Columns3 className="h-4 w-4" aria-hidden="true" />
                 {showAllColumns ? "Fewer columns" : "More columns"}
@@ -141,7 +144,8 @@ export function RosterTable({ players }: RosterTableProps) {
               <a
                 href="/api/export"
                 download
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-court-line px-3 text-sm font-medium text-zinc-600 transition hover:border-cyan-400 hover:text-white"
+                aria-label="Download team roster as a CSV file"
+                className="inline-flex h-11 items-center justify-center gap-2 self-end rounded-md border border-court-line px-3 text-sm font-medium text-zinc-600 transition hover:border-cyan-400 hover:text-white"
               >
                 <Download className="h-4 w-4" aria-hidden="true" />
                 <span className="sm:hidden lg:inline">Export</span>
@@ -150,8 +154,8 @@ export function RosterTable({ players }: RosterTableProps) {
           </div>
 
           <div className="mt-3 flex items-center gap-2 md:hidden">
-            <label className="flex-1">
-              <span className="sr-only">Sort students</span>
+            <label className="grid flex-1 gap-1.5 text-xs font-medium text-zinc-500">
+              Sort students
               <select
                 value={sortKey}
                 onChange={(event) => {
@@ -167,20 +171,21 @@ export function RosterTable({ players }: RosterTableProps) {
             <button
               type="button"
               onClick={() => setSortDirection((current) => current === "asc" ? "desc" : "asc")}
-              className="grid h-11 w-11 place-items-center rounded-md border border-court-line text-zinc-600"
+              className="mt-[22px] grid h-11 w-11 place-items-center rounded-md border border-court-line text-zinc-600"
               aria-label={`Sort ${sortDirection === "asc" ? "descending" : "ascending"}`}
             >
-              {sortDirection === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+              {sortDirection === "asc" ? <ArrowUp className="h-4 w-4" aria-hidden="true" /> : <ArrowDown className="h-4 w-4" aria-hidden="true" />}
             </button>
           </div>
         </div>
 
-        <div className="hidden max-h-[760px] overflow-auto md:block">
+        <div role="region" tabIndex={0} aria-labelledby="roster-heading" className="hidden max-h-[760px] overflow-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-400 md:block">
           <table className={cn("w-full border-collapse text-left", showAllColumns && "min-w-[1040px]") }>
+            <caption className="sr-only">Team roster and standings. Column headers sort the table.</caption>
             <thead className="sticky top-0 z-10 bg-court-elevated text-xs font-medium text-zinc-500">
               <tr>
                 {visibleColumns.map((column) => (
-                  <th key={column.key} className={cn("px-4 py-3", column.align === "right" && "text-right")}>
+                  <th key={column.key} scope="col" aria-sort={sortKey === column.key ? (sortDirection === "asc" ? "ascending" : "descending") : "none"} className={cn("px-4 py-3", column.align === "right" && "text-right")}>
                     <button
                       type="button"
                       onClick={() => toggleSort(column.key)}
@@ -189,6 +194,7 @@ export function RosterTable({ players }: RosterTableProps) {
                         column.align === "right" && "justify-end",
                         sortKey === column.key && "font-semibold text-cyan-300"
                       )}
+                      aria-label={`Sort by ${column.label}${sortKey === column.key ? `, currently ${sortDirection === "asc" ? "ascending" : "descending"}` : ""}`}
                     >
                       {column.label}
                       <ArrowDownUp className="h-3 w-3" aria-hidden="true" />
@@ -203,7 +209,7 @@ export function RosterTable({ players }: RosterTableProps) {
                   {visibleColumns.map((column) => {
                     if (column.key === "rank") return <td key={column.key} className="px-4 py-3 text-sm tabular-nums text-zinc-500">#{player.rank}</td>;
                     if (column.key === "name") return (
-                      <td key={column.key} className="px-4 py-3">
+                      <th key={column.key} scope="row" className="px-4 py-3 text-left font-normal">
                         <Link href={`/profile/${player.id}`} className="flex items-center gap-3 text-left">
                           <Avatar name={player.name} src={player.profilePictureUrl} size="sm" />
                           <span className="min-w-0">
@@ -211,7 +217,7 @@ export function RosterTable({ players }: RosterTableProps) {
                             <span className="mt-0.5 block text-xs text-zinc-500">Team {player.teamDesignation} · Grade {player.grade}</span>
                           </span>
                         </Link>
-                      </td>
+                      </th>
                     );
                     if (column.key === "readiness") return <td key={column.key} className="px-4 py-3 text-right"><ReadinessBadge value={player.readinessScore} status={player.readinessStatus} size="sm" /></td>;
                     if (column.key === "study") return <td key={column.key} className="px-4 py-3 text-right font-medium tabular-nums text-white">{player.studyRating ?? <span className="text-zinc-500">—</span>}</td>;
@@ -257,7 +263,7 @@ export function RosterTable({ players }: RosterTableProps) {
         </div>
 
         {sortedPlayers.length === 0 ? (
-          <div className="px-5 py-12 text-center">
+          <div className="px-5 py-12 text-center" role="status">
             <p className="font-medium text-white">No students found</p>
             <p className="mt-1 text-sm text-zinc-500">Try a different search or team filter.</p>
           </div>

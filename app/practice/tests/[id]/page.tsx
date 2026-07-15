@@ -1,5 +1,7 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/PageHeader";
 import { InteractivePracticeTest } from "@/components/practice/InteractivePracticeTest";
@@ -9,13 +11,29 @@ import { roleMeets } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export default async function InteractivePracticeTestPage({ params }: { params: Promise<{ id: string }> }) {
+interface InteractivePracticeTestPageProps {
+  params: Promise<{ id: string }>;
+}
+
+const getCachedPracticeTestRecord = cache(getPracticeTestRecord);
+
+export async function generateMetadata({ params }: InteractivePracticeTestPageProps): Promise<Metadata> {
+  const { id } = await params;
+  const testId = Number(id);
+  if (!Number.isInteger(testId) || testId <= 0) return { title: "Practice test" };
+  const test = await getCachedPracticeTestRecord(testId);
+  return test
+    ? { title: test.title, description: test.description ?? `Interactive practice for ${test.eventName}.` }
+    : { title: "Practice test" };
+}
+
+export default async function InteractivePracticeTestPage({ params }: InteractivePracticeTestPageProps) {
   const { id } = await params;
   const testId = Number(id);
   if (!Number.isInteger(testId) || testId <= 0) notFound();
   const [currentUser, test, questions] = await Promise.all([
     getCurrentUser(),
-    getPracticeTestRecord(testId),
+    getCachedPracticeTestRecord(testId),
     getPracticeQuestions(testId),
   ]);
   if (!test) notFound();

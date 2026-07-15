@@ -26,16 +26,21 @@ export function PlayerTrendChart({ snapshots }: PlayerTrendChartProps) {
 
   if (data.length === 0) {
     return (
-      <div className="grid h-72 place-items-center rounded-md border border-court-line bg-court-panel text-sm text-zinc-500">
-        No weekly snapshots yet
+      <div className="grid min-h-48 place-items-center rounded-md border border-dashed border-court-line bg-court-panel p-6 text-center" role="status">
+        <div>
+          <p className="font-medium text-white">No progress history yet</p>
+          <p className="mt-1 text-sm text-zinc-500">Weekly points, placement, and medal snapshots will appear here.</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="h-72 rounded-md border border-court-line bg-court-panel p-3 shadow-sm">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 12, right: 8, bottom: 8, left: 0 }}>
+    <figure className="rounded-md border border-court-line bg-court-panel p-3 shadow-sm">
+      <figcaption className="sr-only">Progress over time. The chart compares historical combined points, average placement, and medals for each weekly snapshot. A data table follows.</figcaption>
+      <div className="h-72" aria-hidden="true">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data} margin={{ top: 12, right: 8, bottom: 8, left: 0 }}>
           <CartesianGrid stroke="rgb(var(--color-line))" strokeDasharray="3 3" />
           <XAxis dataKey="date" stroke="rgb(var(--color-zinc-500))" tick={{ fontSize: 12 }} />
           <YAxis yAxisId="points" stroke="rgb(var(--color-accent))" tick={{ fontSize: 12 }} width={42} />
@@ -79,8 +84,30 @@ export function PlayerTrendChart({ snapshots }: PlayerTrendChartProps) {
             strokeWidth={2}
             dot={{ r: 3 }}
           />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      <table className="sr-only">
+        <caption>Player progress snapshot data</caption>
+        <thead>
+          <tr>
+            <th scope="col">Date</th>
+            <th scope="col">Historical combined points</th>
+            <th scope="col">Average placement</th>
+            <th scope="col">Medals</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((entry, index) => (
+            <tr key={`${entry.date}-${index}`}>
+              <th scope="row">{entry.date}</th>
+              <td>{entry.points}</td>
+              <td>{entry.avgPlacement}</td>
+              <td>{entry.medals}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </figure>
   );
 }

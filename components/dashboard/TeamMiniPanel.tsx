@@ -9,11 +9,11 @@ interface TeamMiniPanelProps {
 
 export function TeamMiniPanel({ teams }: TeamMiniPanelProps) {
   return (
-    <details open className="group/disclosure overflow-hidden rounded-md border border-court-line bg-court-panel shadow-sm">
+    <details open className="group/disclosure overflow-hidden rounded-md border border-court-line bg-court-panel shadow-sm" aria-labelledby="team-summary-heading">
       <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-3 p-4 marker:content-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-400">
         <span className="flex min-w-0 items-center gap-2">
           <Users className="h-5 w-5 shrink-0 text-cyan-300" aria-hidden="true" />
-          <span className="text-lg font-semibold text-white">Teams</span>
+          <h2 id="team-summary-heading" className="text-lg font-semibold text-white">Team overview</h2>
         </span>
         <ChevronDown className="h-4 w-4 shrink-0 text-zinc-500 transition-transform duration-200 group-open/disclosure:rotate-180" aria-hidden="true" />
       </summary>
@@ -23,9 +23,9 @@ export function TeamMiniPanel({ teams }: TeamMiniPanelProps) {
             View all teams →
           </Link>
         </div>
-        <div className="grid gap-3">
+        <ul className="grid gap-3">
           {teams.map((team) => (
-            <div key={team.id} className="rounded-md bg-court-elevated p-3">
+            <li key={team.id} className="rounded-md bg-court-elevated p-3">
               <div className="flex items-center justify-between gap-3">
                 <Link href={`/teams?team=${encodeURIComponent(team.designation)}`} className="group min-w-0 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400">
                   <div className="truncate text-xs font-medium text-zinc-500">{team.name || `Team ${team.designation}`}</div>
@@ -43,9 +43,10 @@ export function TeamMiniPanel({ teams }: TeamMiniPanelProps) {
                   {team.topBuild ? <Link href={`/profile/${team.topBuild.id}`} className="block truncate text-white hover:text-cyan-300">{team.topBuild.name}</Link> : <div className="truncate text-zinc-500">No data yet</div>}
                 </div>
               </div>
-            </div>
+            </li>
           ))}
-        </div>
+          {teams.length === 0 ? <li className="rounded-md border border-dashed border-court-line p-4 text-sm text-zinc-500">No teams have been configured yet.</li> : null}
+        </ul>
       </div>
     </details>
   );

@@ -25,6 +25,7 @@ interface GlobalSearchProps {
   role: UserRole;
   userId: string;
   onClose: () => void;
+  onStartTour: () => void;
 }
 
 const queryCache = new Map<string, SearchResult[]>();
@@ -79,7 +80,7 @@ function cacheResults(key: string, results: SearchResult[]) {
   queryCache.set(key, results);
 }
 
-export function GlobalSearch({ role, userId, onClose }: GlobalSearchProps) {
+export function GlobalSearch({ role, userId, onClose, onStartTour }: GlobalSearchProps) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -180,11 +181,11 @@ export function GlobalSearch({ role, userId, onClose }: GlobalSearchProps) {
   function choose(result: SearchResult) {
     if (navigatingId) return;
     setNavigatingId(result.id);
-    onClose();
     if (result.action === "tour") {
-      window.setTimeout(() => window.dispatchEvent(new Event("scioly:start-tour")), 0);
+      onStartTour();
       return;
     }
+    onClose();
     if (result.href) {
       window.dispatchEvent(new Event("scioly:navigation-start"));
       router.push(result.href);
@@ -230,6 +231,7 @@ export function GlobalSearch({ role, userId, onClose }: GlobalSearchProps) {
           <input
             ref={inputRef}
             role="combobox"
+            aria-label="Search pages, students, teams, events, and resources"
             aria-expanded="true"
             aria-autocomplete="list"
             aria-controls="global-search-results"

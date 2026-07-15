@@ -353,6 +353,16 @@ export interface TestoffStudentOption {
   grade: number;
 }
 
+export interface TestoffEventOption {
+  /** Stable form value. Catalog values stay stable before and after their DB row is created. */
+  value: string;
+  id?: number;
+  name: string;
+  category: EventCategory;
+  isCurrentSeason: boolean;
+  isTrial: boolean;
+}
+
 export interface TestoffResult {
   id: number;
   sessionId: number;
@@ -408,6 +418,6 @@ export interface TestoffAdminData {
   configured: boolean;
   activeSeasonId?: number;
   seasons: TestoffSeason[];
-  events: EventDefinition[];
+  events: TestoffEventOption[];
   students: TestoffStudentOption[];
 }

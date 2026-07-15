@@ -42,9 +42,11 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
   const router = useRouter();
   const initialDate = today();
   const initialSeason = data.activeSeasonId ?? data.seasons[0]?.id;
+  const currentEvents = data.events.filter((event) => event.isCurrentSeason);
+  const legacyEvents = data.events.filter((event) => !event.isCurrentSeason);
   const [seasonChoice, setSeasonChoice] = useState(initialSeason ? String(initialSeason) : "new");
   const [newSeasonName, setNewSeasonName] = useState(seasonNameForDate(initialDate));
-  const [eventChoice, setEventChoice] = useState(data.events[0] ? String(data.events[0].id) : "new");
+  const [eventChoice, setEventChoice] = useState(data.events[0]?.value ?? "new");
   const [newEventName, setNewEventName] = useState("");
   const [newEventCategory, setNewEventCategory] = useState<EventCategory>("study");
   const [name, setName] = useState("Testoff 1");
@@ -79,6 +81,7 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
   function submit() {
     setMessage(null);
     setError(null);
+    const selectedEvent = data.events.find((event) => event.value === eventChoice);
     const results = data.students.flatMap((student) => {
       const value = scores[student.id]?.trim();
       if (value === undefined || value === "") return [];
@@ -89,18 +92,25 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
       setError("Enter at least one student score.");
       return;
     }
+    if (eventChoice !== "new" && !selectedEvent) {
+      setError("Choose an event from the updated event list.");
+      return;
+    }
 
     startTransition(async () => {
       try {
+        const eventInput = eventChoice === "new"
+          ? { eventName: newEventName, eventCategory: newEventCategory }
+          : selectedEvent?.id
+            ? { eventId: selectedEvent.id }
+            : { eventName: selectedEvent?.name, eventCategory: selectedEvent?.category };
         const response = await fetch("/api/admin/testoffs", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             seasonId: seasonChoice === "new" ? undefined : Number(seasonChoice),
             seasonName: seasonChoice === "new" ? newSeasonName : undefined,
-            eventId: eventChoice === "new" ? undefined : Number(eventChoice),
-            eventName: eventChoice === "new" ? newEventName : undefined,
-            eventCategory: eventChoice === "new" ? newEventCategory : undefined,
+            ...eventInput,
             name,
             date,
             maxScore: Number(maxScore),
@@ -147,11 +157,11 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
   }
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[380px_1fr]">
-      <section className="h-fit rounded-md border border-court-line bg-court-panel">
+    <div aria-busy={isPending || undefined} className="grid gap-4 xl:grid-cols-[380px_1fr]">
+      <section className="h-fit rounded-md border border-court-line bg-court-panel" aria-labelledby="testoff-details-heading">
         <div className="border-b border-court-line p-5">
           <div className="text-xs font-black uppercase text-cyan-300">Session Setup</div>
-          <h2 className="mt-1 text-xl font-semibold text-white">Testoff details</h2>
+          <h2 id="testoff-details-heading" className="mt-1 text-xl font-semibold text-white">Testoff details</h2>
         </div>
         <div className="grid gap-4 p-5">
           <label className="grid gap-2 text-xs font-black uppercase text-zinc-500">
@@ -174,6 +184,7 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
             <label className="grid gap-2 text-xs font-black uppercase text-zinc-500">
               New Season Name
               <input
+                required
                 value={newSeasonName}
                 onChange={(event) => setNewSeasonName(event.target.value)}
                 maxLength={80}
@@ -189,12 +200,25 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
               onChange={(event) => setEventChoice(event.target.value)}
               className="h-11 rounded-md border border-court-line bg-court-elevated px-3 text-sm font-bold normal-case text-white outline-none focus:border-cyan-400"
             >
-              {data.events.map((event) => (
-                <option key={event.id} value={event.id}>
-                  {event.name} ({event.category})
-                </option>
-              ))}
-              <option value="new">Create a new event…</option>
+              <optgroup label="2027 Division C events">
+                {currentEvents.map((event) => (
+                  <option key={event.value} value={event.value}>
+                    {event.name}{event.isTrial ? " — Trial" : ""} ({event.category === "build" ? "Build" : "Study"})
+                  </option>
+                ))}
+              </optgroup>
+              {legacyEvents.length > 0 ? (
+                <optgroup label="Legacy and custom events">
+                  {legacyEvents.map((event) => (
+                    <option key={event.value} value={event.value}>
+                      {event.name} ({event.category === "build" ? "Build" : "Study"})
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null}
+              <optgroup label="Other">
+                <option value="new">Create a new event…</option>
+              </optgroup>
             </select>
           </label>
 
@@ -203,6 +227,7 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
               <label className="grid gap-2 text-xs font-black uppercase text-zinc-500">
                 New Event Name
                 <input
+                  required
                   value={newEventName}
                   onChange={(event) => setNewEventName(event.target.value)}
                   maxLength={120}
@@ -226,6 +251,7 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
           <label className="grid gap-2 text-xs font-black uppercase text-zinc-500">
             Session Name
             <input
+              required
               value={name}
               onChange={(event) => setName(event.target.value)}
               maxLength={120}
@@ -237,6 +263,7 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
             Date
             <input
               type="date"
+              required
               value={date}
               onChange={(event) => updateDate(event.target.value)}
               className="h-11 rounded-md border border-court-line bg-court-elevated px-3 text-sm font-bold normal-case text-white outline-none focus:border-cyan-400"
@@ -250,6 +277,7 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
                 type="number"
                 min="0.001"
                 step="any"
+                required
                 value={maxScore}
                 onChange={(event) => setMaxScore(event.target.value)}
                 className="h-11 rounded-md border border-court-line bg-court-elevated px-3 text-sm font-bold normal-case text-white outline-none focus:border-cyan-400"
@@ -262,6 +290,7 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
                 min="0.001"
                 max="10"
                 step="0.25"
+                required
                 value={weight}
                 onChange={(event) => setWeight(event.target.value)}
                 className="h-11 rounded-md border border-court-line bg-court-elevated px-3 text-sm font-bold normal-case text-white outline-none focus:border-cyan-400"
@@ -297,28 +326,29 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
             }
             className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-black uppercase text-black transition hover:bg-cyan-200 disabled:border disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500 disabled:opacity-100"
           >
-            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Save Testoff
+            {isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
+            {isPending ? "Saving testoff…" : "Save testoff"}
           </button>
 
-          {message ? <div className="rounded-md border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-100">{message}</div> : null}
-          {error ? <div className="rounded-md border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-100">{error}</div> : null}
+          {message ? <div role="status" className="rounded-md border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-100">{message}</div> : null}
+          {error ? <div role="alert" className="rounded-md border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-100">{error}</div> : null}
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-md border border-court-line bg-court-panel">
+      <section className="overflow-hidden rounded-md border border-court-line bg-court-panel" aria-labelledby="raw-scores-heading">
         <div className="flex flex-col gap-3 border-b border-court-line p-5 md:flex-row md:items-end md:justify-between">
           <div>
             <div className="text-xs font-black uppercase text-cyan-300">Roster Scores</div>
-            <h2 className="mt-1 text-xl font-semibold text-white">Enter raw scores</h2>
+            <h2 id="raw-scores-heading" className="mt-1 text-xl font-semibold text-white">Enter raw scores</h2>
             <p className="mt-1 text-sm text-zinc-500">Blank students are omitted. Zero is a valid entered score.</p>
           </div>
-          <div className="text-xs font-black uppercase text-zinc-500">{enteredCount} entered</div>
+          <div className="text-xs font-black uppercase text-zinc-500" role="status" aria-live="polite">{enteredCount} entered</div>
         </div>
 
         <div className="border-b border-court-line p-4">
           <label className="relative block">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+            <span className="sr-only">Search students by name or grade</span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" aria-hidden="true" />
             <input
               type="search"
               value={search}
@@ -329,20 +359,21 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
           </label>
         </div>
 
-        <div className="max-h-[760px] overflow-auto">
+        <div className="max-h-[760px] overflow-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-400" role="region" aria-labelledby="raw-scores-heading" tabIndex={0}>
           <table className="w-full min-w-[600px] border-collapse text-left text-sm">
+            <caption className="sr-only">Student raw score entry and calculated rank preview</caption>
             <thead className="sticky top-0 z-10 bg-court-elevated text-[11px] font-black uppercase text-zinc-500">
               <tr>
-                <th className="px-4 py-3">Student</th>
-                <th className="px-4 py-3">Grade</th>
-                <th className="px-4 py-3 text-right">Raw Score</th>
-                <th className="px-4 py-3 text-right">Rank Preview</th>
+                <th scope="col" className="px-4 py-3">Student</th>
+                <th scope="col" className="px-4 py-3">Grade</th>
+                <th scope="col" className="px-4 py-3 text-right">Raw score</th>
+                <th scope="col" className="px-4 py-3 text-right">Rank preview</th>
               </tr>
             </thead>
             <tbody>
               {visibleStudents.map((student) => (
                 <tr key={student.id} className="border-t border-court-line">
-                  <td className="px-4 py-3 font-black text-white">{student.name}</td>
+                  <th scope="row" className="px-4 py-3 text-left font-black text-white">{student.name}</th>
                   <td className="px-4 py-3 font-bold text-zinc-500">{student.grade}</td>
                   <td className="px-4 py-3 text-right">
                     <input
@@ -351,6 +382,7 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
                       max={Number(maxScore) || undefined}
                       step="any"
                       value={scores[student.id] ?? ""}
+                      aria-label={`Raw score for ${student.name}`}
                       onChange={(event) =>
                         setScores((current) => ({ ...current, [student.id]: event.target.value }))
                       }
@@ -363,6 +395,7 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
                   </td>
                 </tr>
               ))}
+              {visibleStudents.length === 0 ? <tr><td colSpan={4} className="px-4 py-10 text-center text-zinc-500">No students match this search.</td></tr> : null}
             </tbody>
           </table>
         </div>

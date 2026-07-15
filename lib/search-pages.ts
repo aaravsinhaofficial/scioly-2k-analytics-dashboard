@@ -53,7 +53,7 @@ const pageCandidates: SearchCandidate[] = [
     kind: "page",
     group: "Pages",
     title: "Event resources",
-    subtitle: "Vetted 2027 links, topics, starter paths, and team materials",
+    subtitle: "2027 links, topics, starter paths, and team materials",
     href: "/resources",
     keywords: ["resources", "events", "2027", "notes", "guides", "starter", "study", "official sources"],
     minimumRole: "viewer",
@@ -106,12 +106,12 @@ const pageCandidates: SearchCandidate[] = [
   {
     id: "admin:library",
     kind: "page",
-    group: "Administration",
-    title: "Manage event library",
-    subtitle: "Add resources, guide text, practice questions, and tests",
+    group: "Pages",
+    title: "Contribute event resources",
+    subtitle: "Members add resources; officers manage practice content and removals",
     href: "/admin/library",
-    keywords: ["resources", "library", "add guide", "practice question", "practice test", "event materials", "officer"],
-    minimumRole: "officer",
+    keywords: ["resources", "library", "contribute", "add resource", "add guide", "practice question", "practice test", "event materials"],
+    minimumRole: "viewer",
     quickRank: 11
   },
   {

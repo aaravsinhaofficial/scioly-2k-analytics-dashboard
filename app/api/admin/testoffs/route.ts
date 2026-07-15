@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { invalidateAnalyticsCache } from "@/lib/analytics-cache";
 import { getAuthenticatedStudent } from "@/lib/auth";
 import { getSupabaseAdmin, hasSupabaseConfig } from "@/lib/supabase";
-import { roleMeets } from "@/lib/utils";
+import { normalizeEventName, roleMeets } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -91,6 +91,9 @@ export async function POST(request: Request) {
   if (!hasExistingEvent && (!eventName || eventName.length > 120)) {
     return failure("Choose an event or enter a new event name up to 120 characters.", 400);
   }
+  if (!hasExistingEvent && !normalizeEventName(eventName ?? "")) {
+    return failure("Enter a valid event name.", 400);
+  }
   if (!Number.isFinite(maxScore) || maxScore <= 0) return failure("Maximum score must be greater than zero.", 400);
   if (!Number.isFinite(weight) || weight <= 0 || weight > 10) {
     return failure("Weight must be greater than zero and no more than 10.", 400);
@@ -124,17 +127,43 @@ export async function POST(request: Request) {
     return failure("One or more selected students no longer exist or are archived.", 400);
   }
 
-  const eventQuery = hasExistingEvent
-    ? supabase.from("events").select("id,name").eq("id", eventId).maybeSingle()
-    : supabase
+  let event: { id: number; name: string } | null = null;
+  if (hasExistingEvent) {
+    const { data, error } = await supabase
+      .from("events")
+      .select("id,name")
+      .eq("id", eventId)
+      .maybeSingle();
+    if (error) return failure(error.message, 500);
+    if (data) event = { id: Number(data.id), name: String(data.name) };
+  } else {
+    const canonicalName = normalizeEventName(eventName ?? "");
+    const { data: existingEvents, error: existingEventError } = await supabase
+      .from("events")
+      .select("id,name");
+    if (existingEventError) return failure(existingEventError.message, 500);
+
+    const canonicalMatches = (existingEvents ?? []).filter(
+      (candidate) => normalizeEventName(String(candidate.name)) === canonicalName
+    );
+    const canonicalMatch =
+      canonicalMatches.find((candidate) => String(candidate.name).toLowerCase() === eventName?.toLowerCase()) ??
+      canonicalMatches[0];
+
+    if (canonicalMatch) {
+      event = { id: Number(canonicalMatch.id), name: String(canonicalMatch.name) };
+    } else {
+      const { data: createdEvent, error: createEventError } = await supabase
         .from("events")
         .upsert({ name: eventName, category: eventCategory }, { onConflict: "name" })
         .select("id,name")
         .single();
-  const { data: event, error: eventError } = await eventQuery;
-  if (eventError) return failure(eventError.message, 500);
+      if (createEventError) return failure(createEventError.message, 500);
+      if (createdEvent) event = { id: Number(createdEvent.id), name: String(createdEvent.name) };
+    }
+  }
   if (!event) return failure("The selected event no longer exists.", 404);
-  const resolvedEventId = Number(event.id);
+  const resolvedEventId = event.id;
 
   let season: { id: number; name: string } | null = null;
   if (Number.isInteger(requestedSeasonId) && requestedSeasonId > 0) {

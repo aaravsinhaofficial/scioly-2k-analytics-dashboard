@@ -74,6 +74,49 @@ export interface PracticeQuestionMutationResponse {
   persisted?: boolean;
 }
 
+export interface PracticeQuestionCsvError {
+  row: number;
+  field?: string;
+  message: string;
+}
+
+export interface PracticeQuestionCsvRow {
+  sourceRow: number;
+  type: PracticeQuestionType;
+  prompt: string;
+  options: string[];
+  correctOption?: number;
+  modelAnswer?: string;
+  explanation?: string;
+  points: number;
+  position?: number;
+}
+
+export interface PracticeQuestionCsvPreviewRow extends Omit<PracticeQuestionCsvRow, "position"> {
+  position: number;
+}
+
+export interface PracticeQuestionCsvPreview {
+  rows: PracticeQuestionCsvPreviewRow[];
+  errors: PracticeQuestionCsvError[];
+  rowCount: number;
+  canImport: boolean;
+  maxRows: number;
+}
+
+export interface PracticeQuestionCsvImportResponse {
+  ok: boolean;
+  preview?: PracticeQuestionCsvPreview;
+  /** Frozen CSV returned after resolving a public Google Sheets link. */
+  resolvedCsv?: string;
+  /** Binds a commit to the exact CSV and resolved preview the officer reviewed. */
+  previewFingerprint?: string;
+  questions?: PracticeTestQuestion[];
+  message?: string;
+  error?: string;
+  persisted?: boolean;
+}
+
 export interface PracticeAttemptResponse {
   ok: boolean;
   attempt?: PracticeAttemptView;
