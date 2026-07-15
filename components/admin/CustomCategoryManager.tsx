@@ -70,6 +70,19 @@ export function CustomCategoryManager() {
   }
 
   async function createCategory() {
+    if (
+      busyKey === "create" ||
+      !name.trim() ||
+      !Number.isInteger(defaultPoints) ||
+      defaultPoints < 1 ||
+      defaultPoints > 500 ||
+      !Number.isInteger(maxPoints) ||
+      maxPoints < defaultPoints ||
+      maxPoints > 500
+    ) {
+      setError("Enter a category name and a valid default and maximum point value.");
+      return;
+    }
     const saved = await request("POST", { name, defaultPoints, maxPoints }, "create");
     if (saved) {
       setName("");
@@ -100,30 +113,30 @@ export function CustomCategoryManager() {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-md border border-court-line bg-court-panel p-4 sm:p-5">
+      <section className="rounded-md border border-court-line bg-court-panel p-4 sm:p-5" aria-labelledby="custom-category-heading">
         <div>
-          <h2 className="text-xl font-semibold text-white">Custom point categories</h2>
+          <h2 id="custom-category-heading" className="text-xl font-semibold text-white">Custom point categories</h2>
           <p className="mt-1 text-sm leading-6 text-zinc-500">Create reusable activities for member point logs. Changes and deactivations can be undone from the audit log.</p>
         </div>
-        <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_160px_160px_auto] xl:items-end">
-          <label className="grid min-w-0 gap-2 text-sm font-medium text-zinc-600">Name<input value={name} maxLength={80} onChange={(event) => setName(event.target.value)} placeholder="Build iteration" className="w-full min-w-0 rounded-md border border-court-line bg-court-elevated px-3 text-white" /></label>
-          <label className="grid min-w-0 gap-2 text-sm font-medium text-zinc-600">Default points<input type="number" min={1} max={500} value={defaultPoints} onChange={(event) => setDefaultPoints(Number(event.target.value))} className="w-full min-w-0 rounded-md border border-court-line bg-court-elevated px-3 text-white" /></label>
-          <label className="grid min-w-0 gap-2 text-sm font-medium text-zinc-600">Maximum points<input type="number" min={1} max={500} value={maxPoints} onChange={(event) => setMaxPoints(Number(event.target.value))} className="w-full min-w-0 rounded-md border border-court-line bg-court-elevated px-3 text-white" /></label>
-          <button type="button" onClick={() => void createCategory()} disabled={busyKey === "create" || !name.trim() || defaultPoints < 1 || maxPoints < defaultPoints || maxPoints > 500} className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200 disabled:border disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500 md:col-span-2 xl:col-span-1 xl:w-auto">
-            {busyKey === "create" ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlusCircle className="h-4 w-4" />} Create category
+        <form onSubmit={(event) => { event.preventDefault(); void createCategory(); }} aria-busy={busyKey === "create" || undefined} className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_160px_160px_auto] xl:items-end">
+          <label className="grid min-w-0 gap-2 text-sm font-medium text-zinc-600">Name<input required value={name} maxLength={80} onChange={(event) => setName(event.target.value)} placeholder="Build iteration" className="w-full min-w-0 rounded-md border border-court-line bg-court-elevated px-3 text-white" /></label>
+          <label className="grid min-w-0 gap-2 text-sm font-medium text-zinc-600">Default points<input required type="number" min={1} max={500} value={defaultPoints} onChange={(event) => setDefaultPoints(Number(event.target.value))} className="w-full min-w-0 rounded-md border border-court-line bg-court-elevated px-3 text-white" /></label>
+          <label className="grid min-w-0 gap-2 text-sm font-medium text-zinc-600">Maximum points<input required type="number" min={1} max={500} value={maxPoints} onChange={(event) => setMaxPoints(Number(event.target.value))} className="w-full min-w-0 rounded-md border border-court-line bg-court-elevated px-3 text-white" /></label>
+          <button type="submit" disabled={busyKey === "create" || !name.trim() || !Number.isInteger(defaultPoints) || defaultPoints < 1 || defaultPoints > 500 || !Number.isInteger(maxPoints) || maxPoints < defaultPoints || maxPoints > 500} className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200 disabled:border disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500 md:col-span-2 xl:col-span-1 xl:w-auto">
+            {busyKey === "create" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <PlusCircle className="h-4 w-4" aria-hidden="true" />} {busyKey === "create" ? "Creating…" : "Create category"}
           </button>
-        </div>
+        </form>
       </section>
 
       <section className="overflow-hidden rounded-md border border-court-line bg-court-panel">
         <div className="flex flex-col gap-3 border-b border-court-line p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-          <div><h2 className="text-lg font-semibold text-white">Saved categories</h2><p className="mt-1 text-sm text-zinc-500">{categories.filter((category) => category.isActive).length} active · {categories.filter((category) => !category.isActive).length} inactive</p></div>
+          <div><h2 id="saved-categories-heading" className="text-lg font-semibold text-white">Saved categories</h2><p className="mt-1 text-sm text-zinc-500">{categories.filter((category) => category.isActive).length} active · {categories.filter((category) => !category.isActive).length} inactive</p></div>
           <button type="button" onClick={() => void loadCategories()} disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-md border border-court-line px-3 text-sm font-medium text-zinc-600 hover:border-cyan-400 hover:text-white"><RotateCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh</button>
         </div>
         {message ? <div className="border-b border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-300" role="status">{message}</div> : null}
         {error ? <div className="border-b border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-300" role="alert">{error}</div> : null}
 
-        {loading ? <div className="flex items-center justify-center gap-2 p-10 text-sm text-zinc-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading categories…</div> : categories.length === 0 ? <div className="p-10 text-center text-sm text-zinc-500">No custom categories yet.</div> : (
+        {loading ? <div className="flex items-center justify-center gap-2 p-10 text-sm text-zinc-500" role="status"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Loading categories…</div> : categories.length === 0 ? <div className="p-10 text-center text-sm text-zinc-500">No custom categories yet.</div> : (
           <div className="grid gap-3 p-4 lg:grid-cols-2 sm:p-5">
             {categories.map((category) => {
               const editing = editingId === category.id && draft;

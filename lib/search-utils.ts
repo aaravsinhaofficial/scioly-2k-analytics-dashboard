@@ -14,6 +14,11 @@ export function searchAnchor(value: string) {
   return normalizeSearchText(value).replace(/\s+/g, "-").slice(0, 72) || "item";
 }
 
+export function libraryContentAnchor(value: string, libraryId?: number) {
+  const anchor = searchAnchor(value);
+  return libraryId === undefined ? anchor : `${anchor}-${libraryId}`;
+}
+
 export function scoreSearchCandidate(candidate: SearchCandidate, rawQuery: string) {
   const query = normalizeSearchText(rawQuery);
   if (!query) return candidate.quickRank ? 100 - candidate.quickRank : 1;

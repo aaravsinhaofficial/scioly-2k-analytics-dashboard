@@ -68,6 +68,7 @@ export function PracticeQuestionManager({ test, initialQuestions }: { test: Test
   const csvSourceRevision = useRef(0);
   const [isPending, startTransition] = useTransition();
   const [isCsvPending, startCsvTransition] = useTransition();
+  const [csvPendingAction, setCsvPendingAction] = useState<"sheet" | "preview" | "import" | null>(null);
 
   function reset() {
     setForm(blank(nextPosition));
@@ -171,6 +172,7 @@ export function PracticeQuestionManager({ test, initialQuestions }: { test: Test
     const sourceCsv = frozenCsv ?? csvInput;
     setCsvMessage(null);
     setCsvError(null);
+    setCsvPendingAction(sheetUrl ? "sheet" : commit ? "import" : "preview");
     if (!commit) {
       setCsvPreview(null);
       setPreviewCsv(null);
@@ -217,6 +219,8 @@ export function PracticeQuestionManager({ test, initialQuestions }: { test: Test
       } catch (caught) {
         if (csvSourceRevision.current !== requestRevision) return;
         setCsvError(caught instanceof Error ? caught.message : "Could not import the practice-question CSV.");
+      } finally {
+        setCsvPendingAction(null);
       }
     });
   }
@@ -251,11 +255,11 @@ export function PracticeQuestionManager({ test, initialQuestions }: { test: Test
         <Link href={`/practice/tests/${test.id}`} className="inline-flex min-h-11 items-center rounded-md border border-court-line px-4 text-sm font-medium text-zinc-600 hover:border-cyan-400 hover:text-white">Preview test</Link>
       </div>
 
-      <section className="min-w-0 overflow-hidden rounded-md border border-court-line bg-court-panel">
+      <section className="min-w-0 overflow-hidden rounded-md border border-court-line bg-court-panel" aria-labelledby="spreadsheet-import-heading" aria-busy={isCsvPending || undefined}>
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-court-line p-4 sm:p-5">
           <div>
-            <div className="flex items-center gap-2 text-sm font-medium text-cyan-300"><FileSpreadsheet className="h-4 w-4" /> Spreadsheet question import</div>
-            <h2 className="mt-1 text-xl font-semibold text-white">Add a full test from a spreadsheet</h2>
+            <div className="flex items-center gap-2 text-sm font-medium text-cyan-300"><FileSpreadsheet className="h-4 w-4" aria-hidden="true" /> Spreadsheet question import</div>
+            <h2 id="spreadsheet-import-heading" className="mt-1 text-xl font-semibold text-white">Add a full test from a spreadsheet</h2>
             <p className="mt-1 max-w-3xl text-sm leading-6 text-zinc-500">Load a public Google Sheet, upload a CSV, or paste CSV content, then review every parsed row. Imports are all-or-nothing: any row error blocks the entire batch.</p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -287,8 +291,8 @@ export function PracticeQuestionManager({ test, initialQuestions }: { test: Test
                   disabled={isCsvPending || !googleSheetUrl.trim()}
                   className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-cyan-400/50 px-4 text-sm font-semibold text-cyan-200 hover:bg-cyan-400 hover:text-black disabled:border-court-line disabled:bg-court-panel disabled:text-zinc-500"
                 >
-                  {isCsvPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
-                  Load &amp; parse Sheet
+                  {csvPendingAction === "sheet" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />}
+                  {csvPendingAction === "sheet" ? "Loading Sheet…" : "Load & parse Sheet"}
                 </button>
               </div>
               <p id="google-sheet-help" className="mt-2 text-xs leading-5 text-zinc-500">
@@ -312,8 +316,8 @@ export function PracticeQuestionManager({ test, initialQuestions }: { test: Test
             />
             <p id="practice-question-csv-help" className="text-xs leading-5 text-zinc-500">Correct Answer accepts A–F, 1–6, or the exact choice text. Leave Order blank to append the question after the current maximum. Maximum 500 rows / 512 KB.</p>
             <div className="flex flex-col gap-2 sm:flex-row">
-              <button type="button" onClick={() => parseCsv(false)} disabled={isCsvPending || !csvInput.trim()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200 disabled:border disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500">{isCsvPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />} Parse preview</button>
-              <button type="button" onClick={() => parseCsv(true)} disabled={isCsvPending || !csvPreview?.canImport || !previewCsv || !previewFingerprint} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-cyan-400/50 px-4 text-sm font-semibold text-cyan-200 hover:bg-cyan-400 hover:text-black disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500"><Upload className="h-4 w-4" /> Import all questions</button>
+              <button type="button" onClick={() => parseCsv(false)} disabled={isCsvPending || !csvInput.trim()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200 disabled:border disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500">{csvPendingAction === "preview" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />} {csvPendingAction === "preview" ? "Parsing preview…" : "Parse preview"}</button>
+              <button type="button" onClick={() => parseCsv(true)} disabled={isCsvPending || !csvPreview?.canImport || !previewCsv || !previewFingerprint} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-cyan-400/50 px-4 text-sm font-semibold text-cyan-200 hover:bg-cyan-400 hover:text-black disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500">{csvPendingAction === "import" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4" aria-hidden="true" />} {csvPendingAction === "import" ? "Importing…" : "Import all questions"}</button>
             </div>
             {csvMessage ? <p role="status" className={cn("rounded-md border p-3 text-sm", csvPreview && !csvPreview.canImport ? "border-amber-300/30 bg-amber-300/10 text-amber-200" : "border-emerald-300/30 bg-emerald-300/10 text-emerald-300")}>{csvMessage}</p> : null}
             {csvError ? <p role="alert" className="rounded-md border border-red-300/30 bg-red-300/10 p-3 text-sm text-red-300">{csvError}</p> : null}
@@ -321,18 +325,18 @@ export function PracticeQuestionManager({ test, initialQuestions }: { test: Test
 
           <div className="min-w-0 rounded-md border border-court-line bg-court-elevated p-4">
             <div className="flex items-start justify-between gap-3">
-              <div><p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Parse preview</p><h3 className="mt-1 font-semibold text-white">{csvPreview ? `${csvPreview.rowCount} row${csvPreview.rowCount === 1 ? "" : "s"} detected` : "Nothing parsed yet"}</h3></div>
+              <div><p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Parse preview</p><h3 id="csv-preview-heading" className="mt-1 font-semibold text-white">{csvPreview ? `${csvPreview.rowCount} row${csvPreview.rowCount === 1 ? "" : "s"} detected` : "Nothing parsed yet"}</h3></div>
               {csvPreview ? <span className={cn("rounded-full px-2 py-1 text-xs", csvPreview.canImport ? "bg-emerald-300/10 text-emerald-300" : "bg-red-300/10 text-red-300")}>{csvPreview.canImport ? "Ready" : "Blocked"}</span> : null}
             </div>
             {csvPreview ? (
               <div className="mt-4 space-y-3">
                 {csvPreview.errors.length > 0 ? (
-                  <div className="max-h-64 space-y-2 overflow-y-auto pr-1" role="alert">
+                  <div className="max-h-64 space-y-2 overflow-y-auto pr-1" role="alert" tabIndex={0} aria-labelledby="csv-preview-heading">
                     {csvPreview.errors.slice(0, 100).map((entry, index) => <div key={`${entry.row}-${entry.field ?? "row"}-${index}`} className="rounded-md border border-red-300/30 bg-red-300/5 p-3 text-xs leading-5 text-red-200"><span className="font-semibold">Row {entry.row}{entry.field ? ` · ${entry.field}` : ""}:</span> {entry.message}</div>)}
                     {csvPreview.errors.length > 100 ? <p className="text-xs text-red-200">Showing the first 100 of {csvPreview.errors.length} errors.</p> : null}
                   </div>
                 ) : (
-                  <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+                  <div className="max-h-80 space-y-2 overflow-y-auto pr-1" role="region" tabIndex={0} aria-labelledby="csv-preview-heading">
                     {csvPreview.rows.map((row) => <article key={row.sourceRow} className="rounded-md border border-court-line bg-court-panel p-3"><div className="flex items-center justify-between gap-3 text-xs"><span className="font-medium text-cyan-300">Row {row.sourceRow} · {row.type.toUpperCase()}</span><span className="text-zinc-500">Order {row.position} · {row.points} pt{row.points === 1 ? "" : "s"}</span></div><p className="mt-2 line-clamp-2 break-words text-sm font-medium text-white">{row.prompt}</p>{row.type === "mcq" ? <p className="mt-1 text-xs text-emerald-300">Correct: {String.fromCharCode(65 + (row.correctOption ?? 0))}. {row.options[row.correctOption ?? 0]}</p> : <p className="mt-1 line-clamp-2 text-xs text-zinc-500">Model: {row.modelAnswer}</p>}</article>)}
                   </div>
                 )}
@@ -343,17 +347,18 @@ export function PracticeQuestionManager({ test, initialQuestions }: { test: Test
       </section>
 
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,460px)_minmax(0,1fr)]">
-        <section className="min-w-0 rounded-md border border-court-line bg-court-panel p-4 sm:p-5">
+        <section className="min-w-0 rounded-md border border-court-line bg-court-panel p-4 sm:p-5" aria-labelledby="question-editor-heading">
           <div className="flex items-start justify-between gap-3">
-            <div><p className="text-sm font-medium text-cyan-300">{test.eventName}</p><h2 className="mt-1 text-xl font-semibold text-white">{form.id ? "Edit question" : "Add a question"}</h2></div>
+            <div><p className="text-sm font-medium text-cyan-300">{test.eventName}</p><h2 id="question-editor-heading" className="mt-1 text-xl font-semibold text-white">{form.id ? "Edit question" : "Add a question"}</h2></div>
             {form.id ? <button type="button" onClick={reset} className="grid h-11 w-11 place-items-center rounded-md border border-court-line text-zinc-500 hover:text-white" aria-label="Cancel editing"><X className="h-4 w-4" /></button> : null}
           </div>
 
+          <form onSubmit={(event) => { event.preventDefault(); persist(form); }} aria-busy={isPending || undefined}>
           <div className="mt-5 grid min-w-0 gap-4">
             <div className="grid grid-cols-2 gap-2" role="group" aria-label="Question type">
-              {(["mcq", "frq"] as const).map((type) => <button key={type} type="button" onClick={() => setForm((current) => ({ ...current, type }))} className={cn("min-h-11 rounded-md border px-3 text-sm font-semibold", form.type === type ? "border-cyan-400 bg-cyan-400/10 text-cyan-300" : "border-court-line text-zinc-500")}>{type === "mcq" ? "Multiple choice" : "Free response"}</button>)}
+              {(["mcq", "frq"] as const).map((type) => <button key={type} type="button" onClick={() => setForm((current) => ({ ...current, type }))} aria-pressed={form.type === type} className={cn("min-h-11 rounded-md border px-3 text-sm font-semibold", form.type === type ? "border-cyan-400 bg-cyan-400/10 text-cyan-300" : "border-court-line text-zinc-500")}>{type === "mcq" ? "Multiple choice" : "Free response"}</button>)}
             </div>
-            <label className="grid gap-2 text-sm font-medium text-zinc-600">Question<textarea rows={5} maxLength={8000} value={form.prompt} onChange={(event) => setForm({ ...form, prompt: event.target.value })} className="min-w-0 resize-y rounded-md border border-court-control bg-court-panel p-3 text-white outline-none focus:border-cyan-400" /></label>
+            <label className="grid gap-2 text-sm font-medium text-zinc-600">Question<textarea required rows={5} maxLength={8000} value={form.prompt} onChange={(event) => setForm({ ...form, prompt: event.target.value })} className="min-w-0 resize-y rounded-md border border-court-control bg-court-panel p-3 text-white outline-none focus:border-cyan-400" /></label>
 
             {form.type === "mcq" ? (
               <fieldset className="grid gap-3">
@@ -361,14 +366,14 @@ export function PracticeQuestionManager({ test, initialQuestions }: { test: Test
                 {form.options.map((option, index) => (
                   <div key={index} className="flex min-w-0 items-center gap-2">
                     <input type="radio" name="correct-option" checked={form.correctOption === index} onChange={() => setForm({ ...form, correctOption: index })} className="h-4 w-4 shrink-0 accent-cyan-400" aria-label={`Mark choice ${index + 1} correct`} />
-                    <input value={option} maxLength={1000} onChange={(event) => updateOption(index, event.target.value)} placeholder={`Choice ${index + 1}`} className="h-11 min-w-0 flex-1 rounded-md border border-court-control bg-court-panel px-3 text-white outline-none focus:border-cyan-400" />
+                    <input required value={option} maxLength={1000} onChange={(event) => updateOption(index, event.target.value)} placeholder={`Choice ${index + 1}`} className="h-11 min-w-0 flex-1 rounded-md border border-court-control bg-court-panel px-3 text-white outline-none focus:border-cyan-400" />
                     {form.options.length > 2 ? <button type="button" onClick={() => setForm((current) => ({ ...current, options: current.options.filter((_, optionIndex) => optionIndex !== index), correctOption: current.correctOption === index ? 0 : current.correctOption > index ? current.correctOption - 1 : current.correctOption }))} className="grid h-11 w-11 shrink-0 place-items-center rounded-md text-red-300 hover:bg-red-300/10" aria-label={`Remove choice ${index + 1}`}><Trash2 className="h-4 w-4" /></button> : null}
                   </div>
                 ))}
                 {form.options.length < 6 ? <button type="button" onClick={() => setForm({ ...form, options: [...form.options, ""] })} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-dashed border-court-control text-sm font-medium text-cyan-300"><Plus className="h-4 w-4" /> Add choice</button> : null}
               </fieldset>
             ) : (
-              <label className="grid gap-2 text-sm font-medium text-zinc-600">Model answer<textarea rows={6} maxLength={12000} value={form.modelAnswer} onChange={(event) => setForm({ ...form, modelAnswer: event.target.value })} placeholder="A strong answer members can compare with their response after submitting" className="min-w-0 resize-y rounded-md border border-court-control bg-court-panel p-3 text-white outline-none focus:border-cyan-400" /></label>
+              <label className="grid gap-2 text-sm font-medium text-zinc-600">Model answer<textarea required rows={6} maxLength={12000} value={form.modelAnswer} onChange={(event) => setForm({ ...form, modelAnswer: event.target.value })} placeholder="A strong answer members can compare with their response after submitting" className="min-w-0 resize-y rounded-md border border-court-control bg-court-panel p-3 text-white outline-none focus:border-cyan-400" /></label>
             )}
 
             <label className="grid gap-2 text-sm font-medium text-zinc-600">Explanation <span className="font-normal text-zinc-500">(shown after submission)</span><textarea rows={4} maxLength={12000} value={form.explanation} onChange={(event) => setForm({ ...form, explanation: event.target.value })} className="min-w-0 resize-y rounded-md border border-court-control bg-court-panel p-3 text-white outline-none focus:border-cyan-400" /></label>
@@ -378,13 +383,14 @@ export function PracticeQuestionManager({ test, initialQuestions }: { test: Test
             </div>
           </div>
 
-          <button type="button" disabled={isPending || !form.prompt.trim() || (form.type === "frq" && !form.modelAnswer.trim()) || (form.type === "mcq" && form.options.some((option) => !option.trim()))} onClick={() => persist(form)} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200 disabled:border disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500">{isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : form.id ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}{form.id ? "Save question" : "Add question"}</button>
+          <button type="submit" disabled={isPending || !form.prompt.trim() || (form.type === "frq" && !form.modelAnswer.trim()) || (form.type === "mcq" && form.options.some((option) => !option.trim()))} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200 disabled:border disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500">{isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : form.id ? <Pencil className="h-4 w-4" aria-hidden="true" /> : <Plus className="h-4 w-4" aria-hidden="true" />}{isPending ? "Saving question…" : form.id ? "Save question" : "Add question"}</button>
+          </form>
           {message ? <p role="status" className="mt-3 rounded-md border border-emerald-300/30 bg-emerald-300/10 p-3 text-sm text-emerald-300">{message}</p> : null}
           {error ? <p role="alert" className="mt-3 rounded-md border border-red-300/30 bg-red-300/10 p-3 text-sm text-red-300">{error}</p> : null}
         </section>
 
         <section className="min-w-0 overflow-hidden rounded-md border border-court-line bg-court-panel">
-          <div className="border-b border-court-line p-4 sm:p-5"><h2 className="text-xl font-semibold text-white">{test.title}</h2><p className="mt-1 text-sm text-zinc-500">{ordered.filter((question) => question.isActive).length} active questions · MCQs score automatically; free responses use model-answer self-review.</p></div>
+          <div className="border-b border-court-line p-4 sm:p-5"><h2 id="test-questions-heading" className="text-xl font-semibold text-white">{test.title}</h2><p className="mt-1 text-sm text-zinc-500">{ordered.filter((question) => question.isActive).length} active questions · MCQs score automatically; free responses use model-answer self-review.</p></div>
           <div className="grid gap-3 p-4 sm:p-5">
             {ordered.map((question, index) => (
               <article key={question.id} className={cn("min-w-0 rounded-md border p-4", question.isActive ? "border-court-line bg-court-elevated" : "border-red-300/30 bg-red-300/5")}>

@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         ok: false,
-        error: "This account has been archived. Ask a team administrator to restore it."
+        error: "This account is not active for this team. Ask a team administrator to add or restore it."
       },
       { status: 403 }
     );

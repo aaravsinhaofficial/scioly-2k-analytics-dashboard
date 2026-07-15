@@ -236,10 +236,11 @@ export function LibraryManager({
           ) : null}
         </div>
 
+        <form onSubmit={(event) => { event.preventDefault(); save(); }} aria-busy={isPending || undefined}>
         <div className="mt-5 grid min-w-0 gap-4">
           <label className="grid min-w-0 gap-2 text-sm font-medium text-zinc-600">
             Event
-            <select value={form.eventSlug} onChange={(event) => chooseEvent(event.target.value)} className="h-11 w-full min-w-0 rounded-md border border-court-control bg-court-panel px-3 text-white outline-none focus:border-cyan-400">
+            <select required value={form.eventSlug} onChange={(event) => chooseEvent(event.target.value)} className="h-11 w-full min-w-0 rounded-md border border-court-control bg-court-panel px-3 text-white outline-none focus:border-cyan-400">
               {events.map((event) => <option key={event.slug} value={event.slug}>{event.name}</option>)}
             </select>
           </label>
@@ -270,7 +271,7 @@ export function LibraryManager({
 
           <label className="grid min-w-0 gap-2 text-sm font-medium text-zinc-600">
             {form.kind === "question" ? "Question" : "Title"}
-            <input value={form.title} maxLength={240} onChange={(event) => updateForm({ title: event.target.value })} className="h-11 w-full min-w-0 rounded-md border border-court-control bg-court-panel px-3 text-white outline-none focus:border-cyan-400" />
+            <input required value={form.title} maxLength={240} onChange={(event) => updateForm({ title: event.target.value })} className="h-11 w-full min-w-0 rounded-md border border-court-control bg-court-panel px-3 text-white outline-none focus:border-cyan-400" />
           </label>
 
           <div className="grid min-w-0 gap-3 sm:grid-cols-2">
@@ -346,10 +347,11 @@ export function LibraryManager({
           ) : null}
         </div>
 
-        <button type="button" onClick={save} disabled={isPending || !form.eventSlug || !form.title.trim()} className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200 disabled:border disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500">
+        <button type="submit" disabled={isPending || !form.eventSlug || !form.title.trim()} className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200 disabled:border disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500">
           {isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : form.id ? <Pencil className="h-4 w-4" aria-hidden="true" /> : <PlusCircle className="h-4 w-4" aria-hidden="true" />}
-          {form.id ? "Save changes" : form.kind === "test" ? "Create interactive test" : "Add to library"}
+          {isPending ? "Saving…" : form.id ? "Save changes" : form.kind === "test" ? "Create interactive test" : "Add to library"}
         </button>
+        </form>
         {message ? <div className="mt-3 rounded-md border border-emerald-300/40 bg-emerald-300/10 p-3 text-sm text-emerald-300" role="status">{message}</div> : null}
         {error ? <div className="mt-3 rounded-md border border-red-300/40 bg-red-300/10 p-3 text-sm text-red-300" role="alert">{error}</div> : null}
       </section>
@@ -358,7 +360,7 @@ export function LibraryManager({
         <div className="border-b border-court-line p-4 sm:p-5">
           <h2 id="managed-library-heading" className="text-xl font-semibold text-white">Managed library items</h2>
           <p className="mt-1 text-sm leading-6 text-zinc-500">{canModerate ? "Removed items stay here and can be restored. Static starter content is not changed." : "Active team contributions appear here. Officers handle edits and removals."}</p>
-          <div className={cn("mt-4 grid min-w-0 gap-2", canModerate ? "md:grid-cols-[minmax(0,1fr)_180px_140px]" : "md:grid-cols-[minmax(0,1fr)_180px]") }>
+          <div className={cn("mt-4 grid min-w-0 gap-2", canModerate ? "md:grid-cols-[minmax(0,1fr)_180px_140px]" : "md:grid-cols-[minmax(0,1fr)_180px]") } role="group" aria-label="Filter managed library items">
             <label className="relative min-w-0">
               <span className="sr-only">Search managed items</span>
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" aria-hidden="true" />

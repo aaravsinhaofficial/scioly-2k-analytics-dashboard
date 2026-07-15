@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/PageHeader";
 import { TeamComparisonView } from "@/components/teams/TeamComparisonView";
@@ -29,4 +30,3 @@ export default async function TeamsPage({
     </AppShell>
   );
 }
-import Link from "next/link";

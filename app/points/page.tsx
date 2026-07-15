@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { QuickPointLogForm } from "@/components/forms/QuickPointLogForm";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/PageHeader";
@@ -51,4 +52,3 @@ export default async function PointsPage() {
     </AppShell>
   );
 }
-import Link from "next/link";

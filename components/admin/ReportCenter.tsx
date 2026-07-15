@@ -50,12 +50,12 @@ export function ReportCenter({ report }: { report: AdminReportData }) {
             <Filter className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="min-w-0">
-            <h2 className="text-xl font-semibold text-white">Choose what to include</h2>
+            <h2 id="report-filters-heading" className="text-xl font-semibold text-white">Choose what to include</h2>
             <p className="mt-1 text-sm leading-6 text-zinc-500">Generate an on-screen report first, then print it or download the same filtered rows as a CSV.</p>
           </div>
         </div>
 
-        <form action="/admin/reports" method="get" className="mt-5 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <form action="/admin/reports" method="get" aria-labelledby="report-filters-heading" aria-describedby="report-filter-help" className="mt-5 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-5">
           <label className="grid min-w-0 gap-2 text-sm font-medium text-zinc-600 md:col-span-2 xl:col-span-1">
             Report type
             <select name="type" defaultValue={report.filters.type} className="w-full min-w-0 rounded-md border border-court-line bg-court-elevated px-3 text-white">
@@ -78,14 +78,14 @@ export function ReportCenter({ report }: { report: AdminReportData }) {
           </label>
           <label className="grid min-w-0 gap-2 text-sm font-medium text-zinc-600">
             From date
-            <input name="from" type="date" defaultValue={report.filters.from} className="w-full min-w-0 rounded-md border border-court-line bg-court-elevated px-3 text-white" />
+            <input name="from" type="date" defaultValue={report.filters.from} aria-describedby="report-filter-help" className="w-full min-w-0 rounded-md border border-court-line bg-court-elevated px-3 text-white" />
           </label>
           <label className="grid min-w-0 gap-2 text-sm font-medium text-zinc-600">
             Through date
-            <input name="to" type="date" defaultValue={report.filters.to} className="w-full min-w-0 rounded-md border border-court-line bg-court-elevated px-3 text-white" />
+            <input name="to" type="date" defaultValue={report.filters.to} aria-describedby="report-filter-help" className="w-full min-w-0 rounded-md border border-court-line bg-court-elevated px-3 text-white" />
           </label>
           <div className="flex min-w-0 flex-col gap-2 md:col-span-2 md:flex-row xl:col-span-5 xl:items-center xl:justify-between">
-            <p className="text-xs leading-5 text-zinc-500">
+            <p id="report-filter-help" className="text-xs leading-5 text-zinc-500">
               {report.dateFilterApplies
                 ? "The date range applies to this report. Leave either date blank for an open-ended range."
                 : "Readiness and team reports are current snapshots, so the date fields are ignored for this report type."}
@@ -130,19 +130,24 @@ export function ReportCenter({ report }: { report: AdminReportData }) {
 
         {report.rows.length ? (
           <>
-            <div className={cn(styles.desktopTable, "hidden max-h-[760px] overflow-auto md:block")}>
+            <div className={cn(styles.desktopTable, "hidden max-h-[760px] overflow-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-400 md:block")} role="region" aria-labelledby="generated-report-heading" tabIndex={0}>
               <table className="w-full min-w-[960px] border-collapse text-left text-sm">
+                <caption className="sr-only">{report.title}: {report.filterDescription}</caption>
                 <thead className="sticky top-0 z-10 bg-court-elevated text-xs font-medium text-zinc-500">
                   <tr>
                     {report.columns.map((column) => (
-                      <th key={column.key} className={cn("whitespace-nowrap px-4 py-3", column.align === "right" && "text-right")}>{column.label}</th>
+                      <th key={column.key} scope="col" className={cn("whitespace-nowrap px-4 py-3", column.align === "right" && "text-right")}>{column.label}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {report.rows.map((row) => (
                     <tr key={row.id} className="border-t border-court-line align-top hover:bg-court-elevated">
-                      {report.columns.map((column) => (
+                      {report.columns.map((column, index) => index === 0 ? (
+                        <th key={column.key} scope="row" className={cn("max-w-72 px-4 py-3 text-left font-normal", column.align === "right" && "text-right tabular-nums")}>
+                          <CellValue cell={row.cells[column.key]} />
+                        </th>
+                      ) : (
                         <td key={column.key} className={cn("max-w-72 px-4 py-3", column.align === "right" && "text-right tabular-nums")}>
                           <CellValue cell={row.cells[column.key]} />
                         </td>

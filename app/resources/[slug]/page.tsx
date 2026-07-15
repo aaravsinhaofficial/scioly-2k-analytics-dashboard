@@ -1,25 +1,39 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/PageHeader";
 import { StatTile } from "@/components/StatTile";
 import { getCurrentUser } from "@/lib/data";
 import { getLibraryEvent } from "@/lib/library-data";
 import { sciolyEvents } from "@/lib/resource-data";
-import { searchAnchor } from "@/lib/search-utils";
+import { libraryContentAnchor } from "@/lib/search-utils";
 import { roleMeets } from "@/lib/utils";
+
+interface ResourceEventPageProps {
+  params: Promise<{ slug: string }>;
+}
+
+const getCachedLibraryEvent = cache(getLibraryEvent);
 
 export function generateStaticParams() {
   return sciolyEvents.map((event) => ({ slug: event.slug }));
 }
 
+export async function generateMetadata({ params }: ResourceEventPageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const event = await getCachedLibraryEvent(slug);
+  return event
+    ? { title: event.name, description: event.description }
+    : { title: "Event not found" };
+}
+
 export default async function ResourceEventPage({
   params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
+}: ResourceEventPageProps) {
   const { slug } = await params;
-  const [currentUser, event] = await Promise.all([getCurrentUser(), getLibraryEvent(slug)]);
+  const [currentUser, event] = await Promise.all([getCurrentUser(), getCachedLibraryEvent(slug)]);
 
   if (!event) notFound();
   const representedTopics = new Set(event.resources.map((resource) => resource.topic));
@@ -107,7 +121,7 @@ export default async function ResourceEventPage({
           <h2 className="mt-1 text-xl font-semibold text-white">Links and team guides</h2>
           <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {event.resources.map((resource) => (
-              <article id={`resource-${searchAnchor(resource.title)}`} key={resource.title} className="min-w-0 scroll-mt-24 rounded-md border border-court-line bg-court-elevated p-4">
+              <article id={`resource-${libraryContentAnchor(resource.title, resource.libraryId)}`} key={resource.libraryId ?? resource.title} className="min-w-0 scroll-mt-24 rounded-md border border-court-line bg-court-elevated p-4">
                 <div className="flex flex-wrap gap-2">
                   <span className="rounded-md border border-court-control bg-court-panel px-2 py-1 text-xs font-medium text-zinc-600">
                     {resource.type}
@@ -150,7 +164,7 @@ export default async function ResourceEventPage({
             <h2 className="mt-1 text-xl font-semibold text-white">Questions</h2>
             <div className="mt-5 space-y-4">
               {event.questions.map((question) => (
-                <article id={`question-${searchAnchor(question.question)}`} key={question.question} className="scroll-mt-24 rounded-md border border-court-line bg-court-elevated p-4">
+                <article id={`question-${libraryContentAnchor(question.question, question.libraryId)}`} key={question.libraryId ?? question.question} className="scroll-mt-24 rounded-md border border-court-line bg-court-elevated p-4">
                   <div className="text-xs font-medium text-zinc-500">
                     {question.topic} / {question.difficulty}
                   </div>
@@ -173,7 +187,7 @@ export default async function ResourceEventPage({
             <h2 className="mt-1 text-xl font-semibold text-white">Mini and full tests</h2>
             <div className="mt-5 space-y-4">
               {event.tests.map((test) => (
-                <article id={`test-${searchAnchor(test.title)}`} key={test.title} className="scroll-mt-24 rounded-md border border-court-line bg-court-elevated p-4">
+                <article id={`test-${libraryContentAnchor(test.title, test.libraryId)}`} key={test.libraryId ?? test.title} className="scroll-mt-24 rounded-md border border-court-line bg-court-elevated p-4">
                   <div className="flex flex-wrap gap-2">
                     <span className="rounded-md border border-court-control bg-court-panel px-2 py-1 text-xs font-medium text-zinc-600">
                       {test.format}

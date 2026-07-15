@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Loader2, PlusCircle } from "lucide-react";
 import { activityHelp, activityLabels, calculateActivityPoints } from "@/lib/activity";
@@ -24,7 +24,9 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
   const [customCategoryId, setCustomCategoryId] = useState<number | undefined>();
   const [categoryLoadError, setCategoryLoadError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const formId = useId();
 
   const calculatedPoints = useMemo(
     () => calculateActivityPoints({ activityType, minutes, quantity, customPoints }),
@@ -83,6 +85,7 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
 
   function submit() {
     setMessage(null);
+    setError(null);
     startTransition(async () => {
       try {
         const response = await fetch("/api/points", {
@@ -106,7 +109,7 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
         setMessage(`${payload.message ?? payload.error ?? "Point log submitted."} View it in your submission history.`);
         router.refresh();
       } catch (caught) {
-        setMessage(caught instanceof Error ? caught.message : "Could not submit point log.");
+        setError(caught instanceof Error ? caught.message : "Could not submit point log.");
       }
     });
   }
@@ -121,18 +124,19 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
         <div className="flex shrink-0 items-center gap-2">
           <div className="rounded-md border border-cyan-300/30 bg-cyan-300/10 px-3 py-2 text-right">
             <div className="text-xs font-medium text-cyan-300">If approved</div>
-            <div className="text-xl font-semibold tabular-nums text-white">{formatNumber(points)}</div>
+            <div className="text-xl font-semibold tabular-nums text-white" aria-live="polite">{formatNumber(points)} <span className="sr-only">points</span></div>
           </div>
           <ChevronDown className="h-4 w-4 text-zinc-500 transition-transform duration-200 group-open/disclosure:rotate-180" aria-hidden="true" />
         </div>
       </summary>
 
-      <div className="grid gap-3 border-t border-court-line p-4">
+      <form className="grid gap-3 border-t border-court-line p-4" aria-busy={isPending} onSubmit={(event) => { event.preventDefault(); submit(); }}>
         <label className="grid min-w-0 gap-2 text-sm font-medium text-zinc-600">
           Activity type
           <select
             value={activityType}
-            onChange={(event) => setActivityType(event.target.value as ActivityType)}
+            onChange={(event) => { setActivityType(event.target.value as ActivityType); setMessage(null); setError(null); }}
+            aria-describedby={`${formId}-activity-help`}
             className="h-11 w-full min-w-0 max-w-full rounded-md border border-court-line bg-court-panel px-3 text-sm text-white outline-none transition focus:border-cyan-400"
           >
             {activityTypes.map((type) => (
@@ -141,7 +145,7 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
               </option>
             ))}
           </select>
-          <span className="text-xs font-normal leading-5 text-zinc-500">{activityHelp[activityType]}</span>
+          <span id={`${formId}-activity-help`} className="text-xs font-normal leading-5 text-zinc-500">{activityHelp[activityType]}</span>
         </label>
 
         {(activityType === "solo_study" || activityType === "partner_study" || activityType === "build_testing") && (
@@ -150,6 +154,7 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
             <input
               type="number"
               min={0}
+              required
               value={minutes}
               onChange={(event) => setMinutes(Number(event.target.value))}
               className="h-11 rounded-md border border-court-line bg-court-panel px-3 text-sm text-white outline-none transition focus:border-cyan-400"
@@ -163,6 +168,7 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
             <input
               type="number"
               min={0}
+              required
               value={quantity}
               onChange={(event) => setQuantity(Number(event.target.value))}
               className="h-11 rounded-md border border-court-line bg-court-panel px-3 text-sm text-white outline-none transition focus:border-cyan-400"
@@ -201,7 +207,7 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
                 />
               </label>
             )}
-            {categoryLoadError ? <div className="text-xs text-amber-200">{categoryLoadError}</div> : null}
+            {categoryLoadError ? <div className="text-xs text-amber-200" role="alert">{categoryLoadError}</div> : null}
           </>
         ) : null}
 
@@ -209,8 +215,9 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
           <label className="grid gap-2 text-sm font-medium text-zinc-600">
             Requested points
             <input
-              type="number"
-              min={0}
+            type="number"
+            min={0}
+            required
               max={activityType === "custom_activity" ? selectedCategory?.maxPoints ?? 500 : 200}
               value={customPoints}
               onChange={(event) => setCustomPoints(Number(event.target.value))}
@@ -220,8 +227,7 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
         ) : null}
 
         <button
-          type="button"
-          onClick={submit}
+          type="submit"
           disabled={isPending || points <= 0}
           className="mt-1 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black transition hover:bg-cyan-200 disabled:border disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500 disabled:opacity-100"
         >
@@ -229,8 +235,9 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
           Send for approval
         </button>
 
-        {message ? <div className="rounded-md bg-court-elevated p-3 text-sm text-zinc-600" role="status">{message}</div> : null}
-      </div>
+        {message ? <div className="rounded-md border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-200" role="status">{message}</div> : null}
+        {error ? <div className="rounded-md border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200" role="alert">{error}</div> : null}
+      </form>
     </details>
   );
 }

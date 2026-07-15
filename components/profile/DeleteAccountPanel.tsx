@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 import { AlertTriangle, Loader2, Trash2, X } from "lucide-react";
 
 interface DeleteAccountPanelProps {
@@ -12,6 +12,8 @@ export function DeleteAccountPanel({ email }: DeleteAccountPanelProps) {
   const [confirmationEmail, setConfirmationEmail] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelId = useId();
   const emailMatches = confirmationEmail.trim().toLowerCase() === email.trim().toLowerCase();
 
   async function deleteAccount() {
@@ -51,8 +53,11 @@ export function DeleteAccountPanel({ email }: DeleteAccountPanelProps) {
             </p>
           </div>
           <button
+            ref={triggerRef}
             type="button"
             onClick={() => setIsConfirming(true)}
+            aria-expanded={false}
+            aria-controls={panelId}
             className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-md border border-red-400/50 px-4 text-sm font-semibold text-red-200 transition hover:border-red-300 hover:bg-red-300/10 hover:text-white"
           >
             <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -64,12 +69,12 @@ export function DeleteAccountPanel({ email }: DeleteAccountPanelProps) {
   }
 
   return (
-    <section className="rounded-md border border-red-400/50 bg-red-400/10 p-5" aria-labelledby="delete-account-title">
+    <section id={panelId} className="rounded-md border border-red-400/50 bg-red-400/10 p-5" aria-labelledby={`${panelId}-title`}>
       <div className="flex items-start gap-3">
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-200" aria-hidden="true" />
         <div className="min-w-0 flex-1">
-          <h2 id="delete-account-title" className="text-lg font-semibold text-white">Permanently delete your account?</h2>
-          <p className="mt-2 text-sm leading-6 text-zinc-400">
+          <h2 id={`${panelId}-title`} className="text-lg font-semibold text-white">Permanently delete your account?</h2>
+          <p id={`${panelId}-description`} className="mt-2 text-sm leading-6 text-zinc-400">
             Your login will be permanently removed, your public profile will be anonymized, and you will be removed from your current team. Historical competition, point, team, and operational audit/import records are retained and may still contain details required for recordkeeping. This cannot be undone.
           </p>
 
@@ -80,20 +85,26 @@ export function DeleteAccountPanel({ email }: DeleteAccountPanelProps) {
               value={confirmationEmail}
               onChange={(event) => setConfirmationEmail(event.target.value)}
               autoComplete="off"
+              spellCheck={false}
               autoFocus
               disabled={isDeleting}
+              aria-describedby={`${panelId}-description ${panelId}-match-help`}
+              aria-invalid={confirmationEmail.length > 0 && !emailMatches}
               className="h-11 rounded-md border border-red-400/40 bg-court-black px-3 text-sm text-white outline-none transition focus:border-red-300 disabled:opacity-60"
             />
+            <span id={`${panelId}-match-help`} className="text-xs font-normal text-zinc-400" aria-live="polite">
+              {!confirmationEmail ? "The delete button unlocks only after the email matches." : emailMatches ? "Email matches. Review the warning before deleting." : "Email does not match."}
+            </span>
           </label>
 
-          {error ? <div className="mt-3 rounded-md bg-red-950/60 p-3 text-sm text-red-100" role="alert">{error}</div> : null}
+          {error ? <div className="mt-3 rounded-md border border-red-400/40 bg-court-black p-3 text-sm text-red-200" role="alert">{error}</div> : null}
 
           <div className="mt-4 flex flex-wrap gap-3">
             <button
               type="button"
               onClick={deleteAccount}
               disabled={!emailMatches || isDeleting}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-red-300 px-4 text-sm font-semibold text-red-950 transition hover:bg-red-200 disabled:cursor-not-allowed disabled:bg-court-elevated disabled:text-zinc-500"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-red-300 px-4 text-sm font-semibold text-black transition hover:bg-red-200 disabled:cursor-not-allowed disabled:bg-court-elevated disabled:text-zinc-500"
             >
               {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Trash2 className="h-4 w-4" aria-hidden="true" />}
               {isDeleting ? "Deleting account…" : "Permanently delete account"}
@@ -104,6 +115,7 @@ export function DeleteAccountPanel({ email }: DeleteAccountPanelProps) {
                 setIsConfirming(false);
                 setConfirmationEmail("");
                 setError(null);
+                requestAnimationFrame(() => triggerRef.current?.focus());
               }}
               disabled={isDeleting}
               className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-court-line px-4 text-sm font-semibold text-zinc-300 transition hover:border-zinc-500 hover:text-white disabled:opacity-60"

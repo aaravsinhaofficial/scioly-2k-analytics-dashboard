@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useTransition, type FormEvent } from "react";
-import { ArrowRight, Chrome, GraduationCap, Loader2, Mail } from "lucide-react";
+import { useId, useState, useTransition, type FormEvent } from "react";
+import { ArrowRight, Chrome, Eye, EyeOff, GraduationCap, Loader2, Mail } from "lucide-react";
 import { validatePassword } from "@/lib/password";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
@@ -49,6 +49,7 @@ export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
   const [grade, setGrade] = useState("9");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState<string | null>(() =>
     mode === "login" && searchParams.get("account_deleted") === "1"
       ? "Your account has been permanently deleted."
@@ -59,21 +60,25 @@ export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
       ? "This password reset link is invalid or expired. Request a new link below."
       : searchParams.get("error") === "auth_callback_failed"
         ? "Sign-in could not be completed. Please try again or contact your team administrator."
-        : searchParams.get("error") === "account_archived"
-          ? "This account has been archived. Ask a team administrator to restore it before signing in."
-          : null
+        : searchParams.get("error") === "account_unavailable"
+          ? "This account is not active for this team. Ask a team administrator to add or restore it before signing in."
+          : searchParams.get("error") === "account_archived"
+            ? "This account has been archived. Ask a team administrator to restore it before signing in."
+            : null
   );
   const [isPending, startTransition] = useTransition();
   const needsEmail = mode !== "reset-update";
   const needsPassword = mode !== "reset-request";
   const isSignup = mode === "signup";
+  const isNewPassword = isSignup || mode === "reset-update";
+  const fieldId = useId();
 
   function submit(event?: FormEvent) {
     event?.preventDefault();
     setMessage(null);
     setError(null);
 
-    if (needsPassword) {
+    if (isNewPassword) {
       const validation = validatePassword(password);
       if (!validation.valid) {
         setError(validation.errors.join(" "));
@@ -166,7 +171,7 @@ export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
             <p className="mt-2 text-sm leading-6 text-zinc-500">{copy.description}</p>
           </header>
 
-          <form className="mt-7 space-y-4" onSubmit={submit}>
+          <form className="mt-7 space-y-4" onSubmit={submit} aria-busy={isPending}>
             {isSignup ? (
               <div className="grid gap-4 sm:grid-cols-[1fr_112px]">
                 <label className="grid gap-2 text-sm font-medium text-zinc-600">
@@ -175,7 +180,9 @@ export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
                     value={name}
                     onChange={(event) => setName(event.target.value)}
                     autoComplete="name"
+                    autoFocus
                     required
+                    disabled={isPending}
                     className="h-11 rounded-md border border-court-line bg-court-panel px-3 text-sm text-white outline-none transition focus:border-cyan-400"
                   />
                 </label>
@@ -184,6 +191,7 @@ export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
                   <select
                     value={grade}
                     onChange={(event) => setGrade(event.target.value)}
+                    disabled={isPending}
                     className="h-11 rounded-md border border-court-line bg-court-panel px-3 text-sm text-white outline-none transition focus:border-cyan-400"
                   >
                     <option value="9">9</option>
@@ -205,7 +213,9 @@ export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
                     autoComplete="email"
+                    autoFocus={!isSignup}
                     required
+                    disabled={isPending}
                     className="h-11 w-full rounded-md border border-court-line bg-court-panel pl-9 pr-3 text-sm text-white outline-none transition focus:border-cyan-400"
                   />
                 </span>
@@ -213,17 +223,33 @@ export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
             ) : null}
 
             {needsPassword ? (
-              <label className="grid gap-2 text-sm font-medium text-zinc-600">
-                Password
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  autoComplete={mode === "login" ? "current-password" : "new-password"}
-                  required
-                  className="h-11 rounded-md border border-court-line bg-court-panel px-3 text-sm text-white outline-none transition focus:border-cyan-400"
-                />
-              </label>
+              <div className="grid gap-2 text-sm font-medium text-zinc-600">
+                <label htmlFor={`${fieldId}-password`}>Password</label>
+                <span className="relative">
+                  <input
+                    id={`${fieldId}-password`}
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    autoComplete={mode === "login" ? "current-password" : "new-password"}
+                    autoFocus={mode === "reset-update"}
+                    required
+                    disabled={isPending}
+                    aria-describedby={isNewPassword ? `${fieldId}-password-help` : undefined}
+                    className="h-11 w-full rounded-md border border-court-line bg-court-panel px-3 pr-12 text-sm text-white outline-none transition focus:border-cyan-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((current) => !current)}
+                    className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded text-zinc-500 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-pressed={showPassword}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+                  </button>
+                </span>
+                {isNewPassword ? <span id={`${fieldId}-password-help`} className="text-xs font-normal leading-5 text-zinc-500">Use at least 8 characters, including a number and a special character.</span> : null}
+              </div>
             ) : null}
 
             {mode === "login" ? (
@@ -232,7 +258,7 @@ export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
               </div>
             ) : null}
 
-            {message ? <div className="rounded-md bg-emerald-300/10 p-3 text-sm text-emerald-200" role="status">{message}</div> : null}
+            {message ? <div className="rounded-md bg-emerald-300/10 p-3 text-sm text-emerald-200" role="status" aria-live="polite">{message}</div> : null}
             {error ? <div className="rounded-md bg-red-300/10 p-3 text-sm text-red-200" role="alert">{error}</div> : null}
 
             <button
@@ -241,7 +267,7 @@ export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
               className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black transition hover:bg-cyan-200 disabled:border disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500 disabled:opacity-100"
             >
               {isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ArrowRight className="h-4 w-4" aria-hidden="true" />}
-              {copy.action}
+              {isPending ? `${copy.action}…` : copy.action}
             </button>
           </form>
 

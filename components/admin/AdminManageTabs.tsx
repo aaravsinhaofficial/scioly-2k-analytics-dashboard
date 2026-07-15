@@ -27,12 +27,16 @@ export function AdminManageTabs({ roster, points, categories, accounts, initialT
   }
 
   const panel = tab === "roster" ? roster : tab === "points" ? points : tab === "categories" ? categories : accounts;
+  const selectedLabel = tabs.find((item) => item.id === tab)?.label ?? "Management";
   return (
     <div className="space-y-4">
-      <div className="flex max-w-full flex-wrap gap-2 rounded-md border border-court-line bg-court-panel p-2 shadow-sm" role="tablist" aria-label="Team management area">
-        {tabs.map((item) => <button key={item.id} type="button" onClick={() => chooseTab(item.id)} className={`rounded-md px-4 text-sm font-medium ${tab === item.id ? "bg-white text-black" : "text-zinc-600 hover:bg-court-elevated"}`} role="tab" aria-selected={tab === item.id}>{item.label}</button>)}
+      <div className="flex max-w-full flex-wrap gap-2 rounded-md border border-court-line bg-court-panel p-2 shadow-sm" role="group" aria-label="Choose a team management area">
+        {tabs.map((item) => <button key={item.id} type="button" onClick={() => chooseTab(item.id)} aria-pressed={tab === item.id} className={`rounded-md px-4 text-sm font-medium ${tab === item.id ? "bg-white text-black" : "text-zinc-600 hover:bg-court-elevated"}`}>{item.label}</button>)}
       </div>
-      <div role="tabpanel">{panel}</div>
+      <section aria-labelledby="admin-manage-panel-heading">
+        <h2 id="admin-manage-panel-heading" className="sr-only">{selectedLabel}</h2>
+        {panel}
+      </section>
     </div>
   );
 }

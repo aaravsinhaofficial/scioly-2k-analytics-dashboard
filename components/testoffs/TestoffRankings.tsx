@@ -42,27 +42,29 @@ function EmptyState({ configured }: { configured: boolean }) {
 }
 
 function RankingTable({ event }: { event: TestoffEventRanking }) {
+  const headingId = `testoff-${event.eventId}-ranking-heading`;
   return (
-    <section className="overflow-hidden rounded-md border border-court-line bg-court-panel">
+    <section className="overflow-hidden rounded-md border border-court-line bg-court-panel" aria-labelledby={headingId}>
       <div className="flex flex-col gap-3 border-b border-court-line p-5 md:flex-row md:items-end md:justify-between">
         <div>
           <div className="text-xs font-black uppercase text-cyan-300">{event.eventCategory} event</div>
-          <h2 className="mt-1 text-2xl font-semibold text-white">{event.eventName} rankings</h2>
+          <h2 id={headingId} className="mt-1 text-2xl font-semibold text-white">{event.eventName} rankings</h2>
         </div>
         <div className="rounded-md border border-court-line bg-court-elevated px-3 py-2 text-xs font-black uppercase text-zinc-500">
           {event.sessions.length} session{event.sessions.length === 1 ? "" : "s"} · {formatScore(event.totalWeight)}x total weight
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      <div role="region" tabIndex={0} aria-labelledby={headingId} className="overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-400">
         <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+          <caption className="sr-only">Composite testoff rankings for {event.eventName}</caption>
           <thead className="bg-court-elevated text-[11px] font-black uppercase text-zinc-500">
             <tr>
-              <th className="px-4 py-3">Rank</th>
-              <th className="px-4 py-3">Student</th>
-              <th className="px-4 py-3 text-right">Composite</th>
-              <th className="px-4 py-3 text-right">Completed</th>
-              <th className="px-4 py-3 text-right">Weighted Total</th>
+              <th scope="col" className="px-4 py-3">Rank</th>
+              <th scope="col" className="px-4 py-3">Student</th>
+              <th scope="col" className="px-4 py-3 text-right">Composite</th>
+              <th scope="col" className="px-4 py-3 text-right">Completed</th>
+              <th scope="col" className="px-4 py-3 text-right">Weighted total</th>
             </tr>
           </thead>
           <tbody>
@@ -70,12 +72,12 @@ function RankingTable({ event }: { event: TestoffEventRanking }) {
               event.rankings.map((entry) => (
                 <tr key={entry.studentId} className="border-t border-court-line">
                   <td className="px-4 py-4 text-lg font-black italic text-zinc-500">#{entry.rank}</td>
-                  <td className="px-4 py-4">
+                  <th scope="row" className="px-4 py-4 text-left font-normal">
                     <Link href={`/profile/${entry.studentId}`} className="flex items-center gap-3 rounded hover:text-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400">
                       <Avatar name={entry.studentName} size="sm" />
                       <span className="font-black text-white hover:text-cyan-300">{entry.studentName}</span>
                     </Link>
-                  </td>
+                  </th>
                   <td className="px-4 py-4 text-right text-xl font-black italic text-cyan-300">
                     {entry.compositeScore.toFixed(1)}
                   </td>
@@ -144,8 +146,8 @@ function SessionCards({
                       type="button"
                       onClick={() => onDelete(session.id, session.name)}
                       disabled={deletingId === session.id}
-                      className="inline-flex h-7 items-center gap-1.5 rounded-md border border-red-400/40 bg-red-400/10 px-2.5 text-[11px] font-black uppercase text-red-200 transition hover:bg-red-400 hover:text-black disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500 disabled:opacity-100"
-                      title="Delete this session and re-enter corrected scores. Admins can undo the deletion."
+                      className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-red-400/40 bg-red-400/10 px-2.5 text-xs font-semibold text-red-200 transition hover:bg-red-400 hover:text-black disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500 disabled:opacity-100"
+                      aria-label={`Delete ${session.name} and re-enter corrected scores`}
                     >
                       {deletingId === session.id ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
@@ -159,22 +161,23 @@ function SessionCards({
               </div>
               {session.notes ? <p className="mt-3 text-sm leading-6 text-zinc-500">{session.notes}</p> : null}
             </div>
-            <div className="overflow-x-auto">
+            <div role="region" tabIndex={0} aria-label={`${session.name} results table`} className="overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-400">
               <table className="w-full min-w-[520px] border-collapse text-left text-sm">
+                <caption className="sr-only">Raw and normalized results for {session.name}</caption>
                 <thead className="bg-court-elevated text-[10px] font-black uppercase text-zinc-500">
                   <tr>
-                    <th className="px-4 py-2.5">Place</th>
-                    <th className="px-4 py-2.5">Student</th>
-                    <th className="px-4 py-2.5 text-right">Raw</th>
-                    <th className="px-4 py-2.5 text-right">Percent</th>
-                    <th className="px-4 py-2.5 text-right">Weighted</th>
+                    <th scope="col" className="px-4 py-2.5">Place</th>
+                    <th scope="col" className="px-4 py-2.5">Student</th>
+                    <th scope="col" className="px-4 py-2.5 text-right">Raw</th>
+                    <th scope="col" className="px-4 py-2.5 text-right">Percent</th>
+                    <th scope="col" className="px-4 py-2.5 text-right">Weighted</th>
                   </tr>
                 </thead>
                 <tbody>
                   {session.results.map((result) => (
                     <tr key={result.id} className="border-t border-court-line">
                       <td className="px-4 py-3 font-black text-zinc-500">#{result.rank}</td>
-                      <td className="px-4 py-3 font-bold text-white"><Link href={`/profile/${result.studentId}`} className="hover:text-cyan-300">{result.studentName}</Link></td>
+                      <th scope="row" className="px-4 py-3 text-left font-bold text-white"><Link href={`/profile/${result.studentId}`} className="hover:text-cyan-300">{result.studentName}</Link></th>
                       <td className="px-4 py-3 text-right font-black text-white">
                         {formatScore(result.rawScore)}/{formatScore(session.maxScore)}
                       </td>
@@ -205,6 +208,7 @@ export function TestoffRankings({ data, canManage = false, initialSeasonId: requ
   const [eventId, setEventId] = useStateNumber(requestedEvent?.eventId ?? data.eventRankings.find((group) => group.seasonId === initialSeasonId)?.eventId);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [correctionMessage, setCorrectionMessage] = useState<string | null>(null);
+  const [correctionError, setCorrectionError] = useState<string | null>(null);
   const [, startCorrection] = useTransition();
 
   function deleteSession(sessionId: number, sessionName: string) {
@@ -214,6 +218,7 @@ export function TestoffRankings({ data, canManage = false, initialSeasonId: requ
 
     setDeletingId(sessionId);
     setCorrectionMessage(null);
+    setCorrectionError(null);
     startCorrection(async () => {
       try {
         const response = await fetch("/api/admin/testoffs", {
@@ -228,7 +233,7 @@ export function TestoffRankings({ data, canManage = false, initialSeasonId: requ
         setCorrectionMessage(payload.message ?? "Testoff session deleted.");
         router.refresh();
       } catch (caught) {
-        setCorrectionMessage(caught instanceof Error ? caught.message : "Could not delete the session.");
+        setCorrectionError(caught instanceof Error ? caught.message : "Could not delete the session.");
       } finally {
         setDeletingId(null);
       }
@@ -243,16 +248,22 @@ export function TestoffRankings({ data, canManage = false, initialSeasonId: requ
   return (
     <div id="testoff-rankings" className="scroll-mt-24 space-y-5">
       {correctionMessage ? (
-        <div className="rounded-md border border-court-line bg-court-elevated p-3 text-sm text-zinc-600">
+        <div className="rounded-md border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-200" role="status">
           {correctionMessage}
         </div>
       ) : null}
-      <section className="flex flex-col gap-4 rounded-md border border-court-line bg-court-panel p-4 md:flex-row md:items-end">
+      {correctionError ? <div className="rounded-md border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200" role="alert">{correctionError}</div> : null}
+      <section className="flex flex-col gap-4 rounded-md border border-court-line bg-court-panel p-4 md:flex-row md:items-end" aria-labelledby="ranking-filters-heading">
+        <h2 id="ranking-filters-heading" className="sr-only">Choose ranking season and event</h2>
         <label className="grid flex-1 gap-2 text-xs font-black uppercase text-zinc-500">
           Season
           <select
             value={seasonId ?? ""}
-            onChange={(event) => setSeasonId(Number(event.target.value))}
+            onChange={(event) => {
+              const nextSeasonId = Number(event.target.value);
+              setSeasonId(nextSeasonId);
+              setEventId(data.eventRankings.find((group) => group.seasonId === nextSeasonId)?.eventId);
+            }}
             className="h-11 rounded-md border border-court-line bg-court-elevated px-3 text-sm font-bold normal-case text-white outline-none focus:border-cyan-400"
           >
             {data.seasons.map((season) => (

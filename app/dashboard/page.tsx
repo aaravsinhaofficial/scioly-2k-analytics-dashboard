@@ -48,10 +48,16 @@ export default async function DashboardPage() {
         <DashboardSearch />
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <StatTile href="#team-roster" linkLabel="View team standings" label="Team readiness" value={<ReadinessBadge value={averageReadiness} size="sm" showLabel />} detail={`${scoredPlayers.length} of ${players.length} students have evidence`} />
           <StatTile href="/points#submission-history" linkLabel="Review your practice" label="Your recent preparation" value={formatNumber(currentPlayer?.thirtyDayPoints ?? 0)} detail="Approved practice · last 30 days" />
           <StatTile href="/points#submission-history" linkLabel="Review submissions" label="Awaiting approval" value={formatNumber(currentPlayer?.pendingPracticePoints ?? 0)} detail="Your submitted practice points" />
+          <StatTile href="#team-roster" linkLabel="View team standings" label="Team readiness" value={<ReadinessBadge value={averageReadiness} size="sm" showLabel />} detail={`${scoredPlayers.length} of ${players.length} students have evidence`} />
           <StatTile href="/teams" linkLabel="Open team rosters" label="Active students" value={players.length} detail={`${formatNumber(totalTournaments)} recorded competition starts`} />
+        </section>
+
+        <section className="grid items-start gap-5 lg:grid-cols-2 xl:grid-cols-3" aria-label="Your practice and team activity">
+          <div id="quick-point-log" className="min-w-0 scroll-mt-24"><QuickPointLogForm currentUser={currentUser} /></div>
+          <ActivityPanel players={activePlayers} />
+          <TeamMiniPanel teams={teams} />
         </section>
 
         <details className="rounded-md border border-court-line bg-court-panel shadow-sm">
@@ -63,11 +69,6 @@ export default async function DashboardPage() {
 
         <TournamentInsightsPanel insights={tournamentInsights} />
 
-        <section className="grid items-start gap-5 lg:grid-cols-2 xl:grid-cols-3" aria-label="Team workspace tools">
-          <div id="quick-point-log" className="min-w-0 scroll-mt-24"><QuickPointLogForm currentUser={currentUser} /></div>
-          <ActivityPanel players={activePlayers} />
-          <TeamMiniPanel teams={teams} />
-        </section>
       </div>
     </AppShell>
   );

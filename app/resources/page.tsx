@@ -6,7 +6,7 @@ import { StatTile } from "@/components/StatTile";
 import { getCurrentUser } from "@/lib/data";
 import { getLibraryEvents } from "@/lib/library-data";
 import { getFeaturedResources, getResourceStats, resourceAnnouncements } from "@/lib/resource-data";
-import { searchAnchor } from "@/lib/search-utils";
+import { libraryContentAnchor } from "@/lib/search-utils";
 import { roleMeets } from "@/lib/utils";
 
 export default async function ResourcesPage() {
@@ -46,8 +46,8 @@ export default async function ResourcesPage() {
             <div className="mt-5 grid gap-3 lg:grid-cols-3">
               {featuredResources.map((resource) => (
                 <Link
-                  key={`${resource.eventSlug}-${resource.title}`}
-                  href={`/resources/${resource.eventSlug}#resource-${searchAnchor(resource.title)}`}
+                  key={resource.libraryId ?? `${resource.eventSlug}-${resource.title}`}
+                  href={`/resources/${resource.eventSlug}#resource-${libraryContentAnchor(resource.title, resource.libraryId)}`}
                   className="rounded-md border border-court-line p-4 transition-colors hover:border-cyan-400 hover:bg-court-elevated"
                 >
                   <div className="text-xs font-medium text-cyan-300">{resource.eventName}</div>
