@@ -56,7 +56,7 @@ export default async function DashboardPage() {
 
         <details className="rounded-md border border-court-line bg-court-panel shadow-sm">
           <summary className="flex cursor-pointer items-center px-4 py-3 text-sm font-medium text-white">How readiness is calculated</summary>
-          <div className="border-t border-court-line px-4 py-3 text-sm leading-6 text-zinc-500">{readinessExplanation()} Practice alone never creates a readiness score.</div>
+          <div className="border-t border-court-line px-4 py-3 text-sm leading-6 text-zinc-500">{readinessExplanation()}</div>
         </details>
 
         <RosterTable players={players} />

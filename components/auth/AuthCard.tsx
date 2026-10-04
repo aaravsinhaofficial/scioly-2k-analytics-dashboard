@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
 import { ArrowRight, Chrome, GraduationCap, Loader2, Mail } from "lucide-react";
 import { validatePassword } from "@/lib/password";
+import { LEGAL_VERSION } from "@/lib/legal";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
 type AuthMode = "login" | "signup" | "reset-request" | "reset-update";
@@ -49,6 +50,7 @@ export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
   const [grade, setGrade] = useState("9");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [acceptedPolicies, setAcceptedPolicies] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(() =>
     searchParams.get("error") === "invalid_reset_link"
@@ -57,17 +59,25 @@ export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
         ? "Sign-in could not be completed. Please try again or contact your team administrator."
         : searchParams.get("error") === "account_archived"
           ? "This account has been archived. Ask a team administrator to restore it before signing in."
-          : null
+          : searchParams.get("error") === "legal_acceptance_failed"
+            ? "Your policy acceptance could not be saved. Please sign in and try again."
+            : null
   );
   const [isPending, startTransition] = useTransition();
   const needsEmail = mode !== "reset-update";
   const needsPassword = mode !== "reset-request";
   const isSignup = mode === "signup";
+  const acceptsCurrentPolicies = isSignup ? acceptedPolicies : mode === "login";
 
   function submit(event?: FormEvent) {
     event?.preventDefault();
     setMessage(null);
     setError(null);
+
+    if (isSignup && !acceptedPolicies) {
+      setError("Agree to the Terms of Service and acknowledge the Privacy Policy to create an account.");
+      return;
+    }
 
     if (needsPassword) {
       const validation = validatePassword(password);
@@ -87,6 +97,8 @@ export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
             grade: Number(grade),
             email,
             password,
+            acceptedPolicies: acceptsCurrentPolicies,
+            legalVersion: LEGAL_VERSION,
             next: searchParams.get("next") ?? "/dashboard",
           }),
         });
@@ -122,12 +134,21 @@ export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
   function continueWithGoogle() {
     setMessage(null);
     setError(null);
+    if (isSignup && !acceptedPolicies) {
+      setError("Agree to the Terms of Service and acknowledge the Privacy Policy to create an account.");
+      return;
+    }
     startTransition(async () => {
       try {
         const response = await fetch("/api/auth/google", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ next: searchParams.get("next") ?? "/dashboard" }),
+          body: JSON.stringify({
+            next: searchParams.get("next") ?? "/dashboard",
+            signup: isSignup,
+            acceptedPolicies: acceptsCurrentPolicies,
+            legalVersion: LEGAL_VERSION
+          }),
         });
         const payload = (await response.json()) as { ok: boolean; redirectTo?: string; error?: string };
         if (!response.ok || !payload.ok || !payload.redirectTo) {
@@ -208,6 +229,12 @@ export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
               </label>
             ) : null}
 
+            {mode === "login" ? (
+              <p className="text-xs leading-5 text-zinc-500">
+                By continuing, you agree to the <Link href="/terms" className="text-cyan-300 hover:text-white">Terms of Service</Link> and acknowledge the <Link href="/privacy" className="text-cyan-300 hover:text-white">Privacy Policy</Link>.
+              </p>
+            ) : null}
+
             {needsPassword ? (
               <label className="grid gap-2 text-sm font-medium text-zinc-600">
                 Password
@@ -228,12 +255,27 @@ export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
               </div>
             ) : null}
 
+            {isSignup ? (
+              <label className="flex items-start gap-3 rounded-md border border-court-line bg-court-elevated p-3 text-sm leading-6 text-zinc-600">
+                <input
+                  type="checkbox"
+                  checked={acceptedPolicies}
+                  onChange={(event) => setAcceptedPolicies(event.target.checked)}
+                  required
+                  className="mt-1 h-4 w-4 shrink-0 accent-cyan-300"
+                />
+                <span>
+                  I agree to the <Link href="/terms" target="_blank" className="font-medium text-cyan-300 hover:text-white">Terms of Service</Link> and acknowledge the <Link href="/privacy" target="_blank" className="font-medium text-cyan-300 hover:text-white">Privacy Policy</Link>.
+                </span>
+              </label>
+            ) : null}
+
             {message ? <div className="rounded-md bg-emerald-300/10 p-3 text-sm text-emerald-200" role="status">{message}</div> : null}
             {error ? <div className="rounded-md bg-red-300/10 p-3 text-sm text-red-200" role="alert">{error}</div> : null}
 
             <button
               type="submit"
-              disabled={isPending}
+              disabled={isPending || (isSignup && !acceptedPolicies)}
               className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black transition hover:bg-cyan-200 disabled:border disabled:border-court-line disabled:bg-court-elevated disabled:text-zinc-500 disabled:opacity-100"
             >
               {isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ArrowRight className="h-4 w-4" aria-hidden="true" />}
@@ -251,7 +293,7 @@ export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
             <button
               type="button"
               onClick={continueWithGoogle}
-              disabled={isPending}
+              disabled={isPending || (isSignup && !acceptedPolicies)}
               className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border border-court-line px-4 text-sm font-semibold text-zinc-700 transition hover:border-cyan-400 hover:text-white disabled:bg-court-elevated disabled:text-zinc-500 disabled:opacity-100"
             >
               <Chrome className="h-4 w-4" aria-hidden="true" />
@@ -270,7 +312,11 @@ export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
           </div>
         </section>
 
-        <p className="mt-6 text-center text-xs text-zinc-500">For Obra D. Tompkins Science Olympiad</p>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-zinc-500">
+          <span>For Obra D. Tompkins Science Olympiad</span>
+          <Link href="/privacy" className="hover:text-white">Privacy</Link>
+          <Link href="/terms" className="hover:text-white">Terms</Link>
+        </div>
       </div>
     </main>
   );

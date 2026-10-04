@@ -59,7 +59,11 @@ export function searchResourceContent(query: string, events: SciolyEventHub[] = 
         group: "Practice",
         title: test.title,
         subtitle: `${event.name} · ${test.format} · ${test.difficulty}`,
-        href: test.libraryId ? `/practice/tests/${test.libraryId}` : `/resources/${event.slug}#test-${searchAnchor(test.title)}`,
+        href: test.libraryId
+          ? `/practice/tests/${test.libraryId}`
+          : test.testNumber
+            ? `/practice/${event.slug}/${test.testNumber}`
+            : `/resources/${event.slug}#test-${searchAnchor(test.title)}`,
         keywords: [event.name, test.description, test.format, test.difficulty, test.body ?? "", test.url ?? ""]
       });
     }

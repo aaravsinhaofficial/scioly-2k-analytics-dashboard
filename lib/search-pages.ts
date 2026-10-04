@@ -64,11 +64,22 @@ const pageCandidates: SearchCandidate[] = [
     kind: "page",
     group: "Pages",
     title: "Practice library",
-    subtitle: "Interactive MCQ and free-response tests across the 2027 slate",
+    subtitle: "Original printable sets and interactive tests across the official 2027 slate",
     href: "/practice",
     keywords: ["practice", "questions", "answers", "tests", "quiz", "mcq", "frq", "interactive", "2027", "rookie", "pro", "all star"],
     minimumRole: "viewer",
     quickRank: 7
+  },
+  {
+    id: "page:flashcards",
+    kind: "page",
+    group: "Pages",
+    title: "Team flashcards",
+    subtitle: "Create, import, share, study, and vote on team decks",
+    href: "/flashcards",
+    keywords: ["flashcards", "cards", "csv", "import", "share", "study deck", "upvote", "downvote"],
+    minimumRole: "viewer",
+    quickRank: 8
   },
   {
     id: "admin:approve",

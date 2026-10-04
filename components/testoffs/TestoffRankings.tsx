@@ -5,10 +5,10 @@ import Link from "next/link";
 import { CalendarDays, ClipboardList, Loader2, Scale, Trash2, Trophy } from "lucide-react";
 import { useState, useTransition } from "react";
 import { Avatar } from "@/components/Avatar";
-import type { TestoffDashboardData, TestoffEventRanking } from "@/lib/types";
+import type { TestoffRankOnlyDashboardData, TestoffRankOnlyEvent } from "@/lib/types";
 
 interface TestoffRankingsProps {
-  data: TestoffDashboardData;
+  data: TestoffRankOnlyDashboardData;
   canManage?: boolean;
   initialSeasonId?: number;
   initialEventId?: number;
@@ -21,10 +21,6 @@ function formatDateOnly(value: string) {
     year: "numeric",
     timeZone: "UTC"
   }).format(new Date(`${value}T12:00:00Z`));
-}
-
-function formatScore(value: number) {
-  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
 }
 
 function EmptyState({ configured }: { configured: boolean }) {
@@ -41,7 +37,7 @@ function EmptyState({ configured }: { configured: boolean }) {
   );
 }
 
-function RankingTable({ event }: { event: TestoffEventRanking }) {
+function RankingTable({ event }: { event: TestoffRankOnlyEvent }) {
   return (
     <section className="overflow-hidden rounded-md border border-court-line bg-court-panel">
       <div className="flex flex-col gap-3 border-b border-court-line p-5 md:flex-row md:items-end md:justify-between">
@@ -50,19 +46,16 @@ function RankingTable({ event }: { event: TestoffEventRanking }) {
           <h2 className="mt-1 text-2xl font-semibold text-white">{event.eventName} rankings</h2>
         </div>
         <div className="rounded-md border border-court-line bg-court-elevated px-3 py-2 text-xs font-black uppercase text-zinc-500">
-          {event.sessions.length} session{event.sessions.length === 1 ? "" : "s"} · {formatScore(event.totalWeight)}x total weight
+          {event.sessions.length} session{event.sessions.length === 1 ? "" : "s"} · rank only
         </div>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+        <table className="w-full min-w-[420px] border-collapse text-left text-sm">
           <thead className="bg-court-elevated text-[11px] font-black uppercase text-zinc-500">
             <tr>
               <th className="px-4 py-3">Rank</th>
               <th className="px-4 py-3">Student</th>
-              <th className="px-4 py-3 text-right">Composite</th>
-              <th className="px-4 py-3 text-right">Completed</th>
-              <th className="px-4 py-3 text-right">Weighted Total</th>
             </tr>
           </thead>
           <tbody>
@@ -76,20 +69,11 @@ function RankingTable({ event }: { event: TestoffEventRanking }) {
                       <span className="font-black text-white hover:text-cyan-300">{entry.studentName}</span>
                     </Link>
                   </td>
-                  <td className="px-4 py-4 text-right text-xl font-black italic text-cyan-300">
-                    {entry.compositeScore.toFixed(1)}
-                  </td>
-                  <td className="px-4 py-4 text-right font-bold text-zinc-600">
-                    {entry.completedSessions}/{entry.totalSessions}
-                  </td>
-                  <td className="px-4 py-4 text-right font-black text-white">
-                    {formatScore(entry.weightedScore)}
-                  </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-zinc-500">
+                <td colSpan={2} className="px-4 py-10 text-center text-zinc-500">
                   This event has sessions but no saved results.
                 </td>
               </tr>
@@ -99,8 +83,7 @@ function RankingTable({ event }: { event: TestoffEventRanking }) {
       </div>
 
       <div className="border-t border-court-line bg-court-elevated px-5 py-3 text-xs leading-5 text-zinc-500">
-        Composite = sum of each normalized score × session weight ÷ total event weight. A missed session contributes
-        zero until a score is entered.
+        Exact raw, percentage, normalized, and weighted scores are restricted to officers. Team members see placement only.
       </div>
     </section>
   );
@@ -112,7 +95,7 @@ function SessionCards({
   deletingId,
   onDelete
 }: {
-  event: TestoffEventRanking;
+  event: TestoffRankOnlyEvent;
   canManage: boolean;
   deletingId: number | null;
   onDelete: (sessionId: number, sessionName: string) => void;
@@ -133,11 +116,8 @@ function SessionCards({
                   <h3 className="mt-1 text-lg font-semibold text-white">{session.name}</h3>
                 </div>
                 <div className="flex gap-2">
-                  <span className="rounded-md border border-court-line bg-court-elevated px-2.5 py-1 text-[11px] font-black uppercase text-zinc-600">
-                    Max {formatScore(session.maxScore)}
-                  </span>
                   <span className="rounded-md border border-cyan-400/40 bg-cyan-400/10 px-2.5 py-1 text-[11px] font-black uppercase text-cyan-300">
-                    {formatScore(session.weight)}x
+                    Rank only
                   </span>
                   {canManage ? (
                     <button
@@ -160,14 +140,11 @@ function SessionCards({
               {session.notes ? <p className="mt-3 text-sm leading-6 text-zinc-500">{session.notes}</p> : null}
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[520px] border-collapse text-left text-sm">
+              <table className="w-full min-w-[360px] border-collapse text-left text-sm">
                 <thead className="bg-court-elevated text-[10px] font-black uppercase text-zinc-500">
                   <tr>
                     <th className="px-4 py-2.5">Place</th>
                     <th className="px-4 py-2.5">Student</th>
-                    <th className="px-4 py-2.5 text-right">Raw</th>
-                    <th className="px-4 py-2.5 text-right">Percent</th>
-                    <th className="px-4 py-2.5 text-right">Weighted</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -175,15 +152,6 @@ function SessionCards({
                     <tr key={result.id} className="border-t border-court-line">
                       <td className="px-4 py-3 font-black text-zinc-500">#{result.rank}</td>
                       <td className="px-4 py-3 font-bold text-white"><Link href={`/profile/${result.studentId}`} className="hover:text-cyan-300">{result.studentName}</Link></td>
-                      <td className="px-4 py-3 text-right font-black text-white">
-                        {formatScore(result.rawScore)}/{formatScore(session.maxScore)}
-                      </td>
-                      <td className="px-4 py-3 text-right font-bold text-zinc-500">
-                        {((result.rawScore / session.maxScore) * 100).toFixed(1)}%
-                      </td>
-                      <td className="px-4 py-3 text-right font-black text-cyan-300">
-                        {formatScore(result.rankingScore)}
-                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -278,7 +246,7 @@ export function TestoffRankings({ data, canManage = false, initialSeasonId: requ
         </label>
         <div className="flex items-center gap-3 rounded-md border border-court-line bg-court-elevated px-4 py-3 text-sm text-zinc-500 md:max-w-md">
           <Scale className="h-5 w-5 shrink-0 text-cyan-300" aria-hidden="true" />
-          Scores are normalized before weights are applied.
+          Exact scores are visible only to officers in protected tools.
         </div>
       </section>
 

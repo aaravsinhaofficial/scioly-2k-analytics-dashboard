@@ -12,6 +12,7 @@ import {
   GraduationCap,
   History,
   LayoutDashboard,
+  Layers3,
   LogOut,
   Menu,
   MoreHorizontal,
@@ -65,6 +66,7 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
     items: [
       { href: "/resources", label: "Event resources", icon: BookOpen, role: "viewer" },
       { href: "/practice", label: "Practice library", icon: Target, role: "viewer" },
+      { href: "/flashcards", label: "Team flashcards", icon: Layers3, role: "viewer" },
     ],
   },
   {
@@ -289,6 +291,10 @@ export function AppShell({
           <LogOut className="h-[18px] w-[18px]" aria-hidden="true" />
           Sign out
         </button>
+        <div className="mt-2 flex items-center gap-4 px-3 text-xs text-zinc-500">
+          <Link href="/privacy" onClick={() => setMenuOpen(false)} className="hover:text-white">Privacy</Link>
+          <Link href="/terms" onClick={() => setMenuOpen(false)} className="hover:text-white">Terms</Link>
+        </div>
       </div>
     </div>
   );

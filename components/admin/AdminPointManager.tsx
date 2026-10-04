@@ -4,8 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Pencil, PlusCircle, RotateCw, Save, Search, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { StatusBadge } from "@/components/StatusBadge";
+import { PointEvidenceList } from "@/components/points/PointEvidenceList";
 import { activityLabels } from "@/lib/activity";
-import type { ActivityType, PlayerDetail, PointLogStatus } from "@/lib/types";
+import type { ActivityType, PlayerDetail, PointEvidence, PointLogStatus } from "@/lib/types";
 import { formatDate, formatNumber } from "@/lib/utils";
 
 interface AdminPointRow {
@@ -15,12 +16,14 @@ interface AdminPointRow {
   activityType: ActivityType;
   activity: string;
   customLabel: string | null;
+  details: string | null;
   points: number;
   minutes: number;
   quantity: number | null;
   status: PointLogStatus;
   submittedAt: string;
   notes: string | null;
+  evidence?: PointEvidence[];
 }
 
 interface EditDraft {
@@ -127,7 +130,7 @@ export function AdminPointManager({ students, initialPointId }: { students: Play
     const normalized = query.trim().toLowerCase();
     return rows.filter((row) => {
       const matchesStatus = status === "all" || row.status === status;
-      const matchesQuery = !normalized || `${row.studentName} ${row.activity} ${row.notes ?? ""}`.toLowerCase().includes(normalized);
+      const matchesQuery = !normalized || `${row.studentName} ${row.activity} ${row.details ?? ""} ${row.notes ?? ""}`.toLowerCase().includes(normalized);
       return matchesStatus && matchesQuery;
     });
   }, [query, rows, status]);
@@ -395,6 +398,7 @@ export function AdminPointManager({ students, initialPointId }: { students: Play
                     <div className="min-w-0">
                       <h3 className="truncate font-semibold text-white">{row.studentName}</h3>
                       <p className="mt-1 break-words text-sm text-zinc-600">{row.activity}</p>
+                      <PointEvidenceList evidence={row.evidence} />
                     </div>
                     <div className="shrink-0 text-right"><div className="font-semibold tabular-nums text-white">{formatNumber(row.points)} pts</div><StatusBadge status={row.status} /></div>
                   </div>
@@ -410,7 +414,7 @@ export function AdminPointManager({ students, initialPointId }: { students: Play
             <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[940px] border-collapse text-left text-sm">
                 <thead className="bg-court-elevated text-xs text-zinc-500"><tr><th className="px-4 py-3">Student</th><th className="px-4 py-3">Activity</th><th className="px-4 py-3">Submitted</th><th className="px-4 py-3 text-right">Points</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Notes</th><th className="px-4 py-3 text-right">Actions</th></tr></thead>
-                <tbody>{visibleRows.map((row) => <tr key={row.id} className={`border-t border-court-line ${editing?.id === row.id ? "bg-court-elevated/60" : ""}`}><td className="px-4 py-3 font-medium text-white">{row.studentName}</td><td className="px-4 py-3 text-zinc-600"><div>{row.activity}</div><div className="mt-1 text-xs text-zinc-500">{row.minutes} min{row.quantity !== null ? ` · ${row.quantity} items` : ""}</div></td><td className="px-4 py-3 text-zinc-500">{formatDate(row.submittedAt)}</td><td className="px-4 py-3 text-right font-semibold tabular-nums text-white">{formatNumber(row.points)}</td><td className="px-4 py-3"><StatusBadge status={row.status} /></td><td className="max-w-64 px-4 py-3 text-zinc-500">{row.notes ?? "—"}</td><td className="px-4 py-3 text-right"><span className="inline-flex items-center gap-1"><button type="button" onClick={() => beginEdit(row)} className="inline-flex items-center gap-2 rounded-md px-3 text-xs font-medium text-zinc-600 hover:bg-court-elevated hover:text-white"><Pencil className="h-4 w-4" /> Edit</button>{confirmingId === row.id ? <><button type="button" onClick={() => setConfirmingId(null)} className="rounded-md px-3 text-xs text-zinc-600">Cancel</button><button type="button" onClick={() => void removePoint(row)} disabled={removingId === row.id} className="rounded-md bg-red-300/10 px-3 text-xs font-semibold text-red-300">{removingId === row.id ? "Removing…" : "Confirm"}</button></> : <button type="button" onClick={() => { setConfirmingId(row.id); setEditing(null); }} className="inline-flex items-center gap-2 rounded-md px-3 text-xs font-medium text-red-300 hover:bg-red-300/10"><Trash2 className="h-4 w-4" /> Remove</button>}</span></td></tr>)}</tbody>
+                <tbody>{visibleRows.map((row) => <tr key={row.id} className={`border-t border-court-line ${editing?.id === row.id ? "bg-court-elevated/60" : ""}`}><td className="px-4 py-3 font-medium text-white">{row.studentName}</td><td className="px-4 py-3 text-zinc-600"><div>{row.activity}</div>{row.details ? <div className="mt-1 max-w-sm whitespace-pre-wrap text-xs leading-5 text-zinc-500">{row.details}</div> : null}<div className="mt-1 text-xs text-zinc-500">{row.minutes} min{row.quantity !== null ? ` · ${row.quantity} items` : ""}</div><PointEvidenceList evidence={row.evidence} /></td><td className="px-4 py-3 text-zinc-500">{formatDate(row.submittedAt)}</td><td className="px-4 py-3 text-right font-semibold tabular-nums text-white">{formatNumber(row.points)}</td><td className="px-4 py-3"><StatusBadge status={row.status} /></td><td className="max-w-64 px-4 py-3 text-zinc-500">{row.notes ?? "—"}</td><td className="px-4 py-3 text-right"><span className="inline-flex items-center gap-1"><button type="button" onClick={() => beginEdit(row)} className="inline-flex items-center gap-2 rounded-md px-3 text-xs font-medium text-zinc-600 hover:bg-court-elevated hover:text-white"><Pencil className="h-4 w-4" /> Edit</button>{confirmingId === row.id ? <><button type="button" onClick={() => setConfirmingId(null)} className="rounded-md px-3 text-xs text-zinc-600">Cancel</button><button type="button" onClick={() => void removePoint(row)} disabled={removingId === row.id} className="rounded-md bg-red-300/10 px-3 text-xs font-semibold text-red-300">{removingId === row.id ? "Removing…" : "Confirm"}</button></> : <button type="button" onClick={() => { setConfirmingId(row.id); setEditing(null); }} className="inline-flex items-center gap-2 rounded-md px-3 text-xs font-medium text-red-300 hover:bg-red-300/10"><Trash2 className="h-4 w-4" /> Remove</button>}</span></td></tr>)}</tbody>
               </table>
             </div>
           </>

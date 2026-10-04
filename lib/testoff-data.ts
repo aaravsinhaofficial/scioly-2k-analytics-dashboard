@@ -8,6 +8,7 @@ import type {
   TestoffCompositeRanking,
   TestoffDashboardData,
   TestoffEventRanking,
+  TestoffRankOnlyDashboardData,
   TestoffResult,
   TestoffSeason,
   TestoffSessionDetail,
@@ -238,6 +239,40 @@ export async function loadTestoffDashboardData(): Promise<TestoffDashboardData> 
     activeSeasonId: seasons.find((season) => season.isActive)?.id,
     seasons,
     eventRankings
+  };
+}
+
+export function rankOnlyTestoffDashboard(data: TestoffDashboardData): TestoffRankOnlyDashboardData {
+  return {
+    configured: data.configured,
+    activeSeasonId: data.activeSeasonId,
+    seasons: data.seasons,
+    eventRankings: data.eventRankings.map((event) => ({
+      seasonId: event.seasonId,
+      seasonName: event.seasonName,
+      eventId: event.eventId,
+      eventName: event.eventName,
+      eventCategory: event.eventCategory,
+      sessions: event.sessions.map((session) => ({
+        id: session.id,
+        seasonId: session.seasonId,
+        eventId: session.eventId,
+        name: session.name,
+        date: session.date,
+        notes: session.notes,
+        results: session.results.map((result) => ({
+          id: result.id,
+          studentId: result.studentId,
+          studentName: result.studentName,
+          rank: result.rank
+        }))
+      })),
+      rankings: event.rankings.map((ranking) => ({
+        rank: ranking.rank,
+        studentId: ranking.studentId,
+        studentName: ranking.studentName
+      }))
+    }))
   };
 }
 

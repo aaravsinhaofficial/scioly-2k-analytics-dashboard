@@ -65,11 +65,15 @@ export function calculateReadiness(input: {
   const hasCompetition = eventScores.length > 0;
   const hasTestoffs = testoffWeight > 0;
   const evidenceWeight = (hasCompetition ? 60 : 0) + (hasTestoffs ? 30 : 0);
-  const readinessScore = evidenceWeight === 0
-    ? 0
-    : round(((hasCompetition ? competitionScore * 60 : 0) + (hasTestoffs ? testoffScore * 30 : 0) + preparationScore * 10) / (evidenceWeight + 10));
+  const readinessScore = round(
+    ((hasCompetition ? competitionScore * 60 : 0) +
+      (hasTestoffs ? testoffScore * 30 : 0) +
+      preparationScore * 10) /
+    (evidenceWeight + 10)
+  );
   const resultCount = input.performances.length;
   const readinessConfidence: ReadinessConfidence = hasCompetition && hasTestoffs && resultCount >= 3 ? "high" : hasCompetition || hasTestoffs ? "medium" : "low";
+  const evidenceCount = resultCount + input.testoffScores.length + (input.thirtyDayPoints > 0 ? 1 : 0);
 
   return {
     readinessScore,
@@ -78,7 +82,7 @@ export function calculateReadiness(input: {
     preparationScore,
     readinessIsProvisional: !hasCompetition || !hasTestoffs,
     readinessConfidence,
-    readinessStatus: statusFor(readinessScore, resultCount + input.testoffScores.length),
+    readinessStatus: statusFor(readinessScore, evidenceCount),
     resultCount
   };
 }
@@ -94,5 +98,5 @@ export function calculateEventReadiness(performances: ReadinessPerformance[]) {
 }
 
 export function readinessExplanation() {
-  return "Readiness uses recent placements (60%), active-season testoffs (30%), and approved preparation from the last 30 days (10%). Missing competition or testoff evidence is left out, and the score is marked provisional.";
+  return "Readiness uses recent placements (60%), active-season testoffs (30%), and approved preparation from the last 30 days (10%). Approved study and practice points count immediately; missing competition or testoff evidence is left out and the score is marked provisional.";
 }

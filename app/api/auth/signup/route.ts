@@ -3,6 +3,7 @@ import { getAppOrigin } from "@/lib/app-url";
 import { ensureStudentProfile, publicSignupEnabled } from "@/lib/auth";
 import { validatePassword } from "@/lib/password";
 import { getSupabaseServerClient, hasSupabaseConfig } from "@/lib/supabase";
+import { LEGAL_VERSION } from "@/lib/legal";
 
 export const dynamic = "force-dynamic";
 
@@ -26,12 +27,22 @@ export async function POST(request: Request) {
     grade?: number;
     email?: string;
     password?: string;
+    acceptedPolicies?: boolean;
+    legalVersion?: string;
   };
   const email = body.email?.trim().toLowerCase();
   const name = body.name?.trim();
   const grade = Number(body.grade);
   const password = body.password ?? "";
   const passwordValidation = validatePassword(password);
+  const legalAcceptedAt = new Date().toISOString();
+
+  if (body.acceptedPolicies !== true || body.legalVersion !== LEGAL_VERSION) {
+    return NextResponse.json(
+      { ok: false, error: "Agree to the current Terms of Service and acknowledge the Privacy Policy." },
+      { status: 400 }
+    );
+  }
 
   if (!name) {
     return NextResponse.json({ ok: false, error: "Name is required." }, { status: 400 });
@@ -76,7 +87,9 @@ export async function POST(request: Request) {
       authUserId: data.user.id,
       email,
       name,
-      grade
+      grade,
+      legalAcceptedAt,
+      legalVersion: LEGAL_VERSION
     });
     if (!student) {
       await supabase.auth.signOut();

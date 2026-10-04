@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { safeInternalPath } from "@/lib/app-url";
-import { getAuthenticatedStudent } from "@/lib/auth";
+import { getAuthenticatedStudent, recordLegalAcceptance } from "@/lib/auth";
+import { LEGAL_VERSION } from "@/lib/legal";
 import { getSupabaseServerClient, hasSupabaseConfig } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -17,11 +18,19 @@ export async function POST(request: Request) {
     email?: string;
     password?: string;
     next?: string;
+    acceptedPolicies?: boolean;
+    legalVersion?: string;
   };
   const email = body.email?.trim().toLowerCase();
 
   if (!email || !body.password) {
     return NextResponse.json({ ok: false, error: "Email and password are required." }, { status: 400 });
+  }
+  if (body.acceptedPolicies !== true || body.legalVersion !== LEGAL_VERSION) {
+    return NextResponse.json(
+      { ok: false, error: "Agree to the current Terms of Service and acknowledge the Privacy Policy." },
+      { status: 400 }
+    );
   }
 
   const supabase = await getSupabaseServerClient();
@@ -47,6 +56,14 @@ export async function POST(request: Request) {
         error: "This account has been archived. Ask a team administrator to restore it."
       },
       { status: 403 }
+    );
+  }
+  const acceptanceSaved = await recordLegalAcceptance(student.id, new Date().toISOString(), LEGAL_VERSION);
+  if (!acceptanceSaved) {
+    await supabase.auth.signOut();
+    return NextResponse.json(
+      { ok: false, error: "Your policy acceptance could not be saved. Please try again." },
+      { status: 503 }
     );
   }
 

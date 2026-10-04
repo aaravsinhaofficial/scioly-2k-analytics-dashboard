@@ -12,15 +12,15 @@ interface TournamentUploadProps {
 
 const sampleCsv = `Event,Rank,School,Team,Students,Medal
 Astronomy,6,Obra D Tompkins High School,A,"",Yes
-Anatomy & Physiology,4,Obra D Tompkins High School,A,"",Yes
-Tower,7,Obra D Tompkins High School,A,"",No
+Anatomy and Physiology,4,Obra D Tompkins High School,A,"",Yes
+Boomilever,7,Obra D Tompkins High School,A,"",No
 Disease Detectives,1,Seven Lakes High School,A,"Guest Student",Yes`;
 
 const manualSample = `Cy Falls Regional
 2026-03-08
 Schools: Obra D Tompkins High School; Cy Falls High School; Dulles High School
 Water Quality: Student One; Student Two A #2
-Tower: Student Five; Student Six A #7`;
+Boomilever: Student Five; Student Six A #7`;
 
 export function TournamentUpload({ currentUser }: TournamentUploadProps) {
   const router = useRouter();

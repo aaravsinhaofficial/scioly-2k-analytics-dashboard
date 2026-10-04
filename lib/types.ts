@@ -112,6 +112,15 @@ export interface CustomPointCategory {
   isActive: boolean;
 }
 
+export interface PointEvidence {
+  id: string;
+  kind: "file" | "link";
+  name: string;
+  href: string;
+  mimeType?: string;
+  sizeBytes?: number;
+}
+
 export interface GrindPointLog {
   id: number;
   studentId: string;
@@ -121,12 +130,14 @@ export interface GrindPointLog {
   quantity?: number;
   customLabel?: string;
   customCategoryId?: number;
+  details?: string;
   status: PointLogStatus;
   submittedAt: string;
   approvedAt?: string;
   approvedBy?: string;
   notes?: string;
   metadata?: Record<string, unknown>;
+  evidence?: PointEvidence[];
 }
 
 export interface OvrSnapshot {
@@ -199,10 +210,12 @@ export interface PointHistoryRow {
   id: number;
   date: string;
   activity: string;
+  details?: string;
   points: number;
   status: PointLogStatus;
   approvedBy?: string;
   notes?: string;
+  evidence?: PointEvidence[];
 }
 
 export interface EventBreakdown {
@@ -402,6 +415,46 @@ export interface TestoffDashboardData {
   activeSeasonId?: number;
   seasons: TestoffSeason[];
   eventRankings: TestoffEventRanking[];
+}
+
+export interface TestoffRankOnlyResult {
+  id: number;
+  studentId: string;
+  studentName: string;
+  rank: number;
+}
+
+export interface TestoffRankOnlySession {
+  id: number;
+  seasonId: number;
+  eventId: number;
+  name: string;
+  date: string;
+  notes?: string;
+  results: TestoffRankOnlyResult[];
+}
+
+export interface TestoffRankOnlyEntry {
+  rank: number;
+  studentId: string;
+  studentName: string;
+}
+
+export interface TestoffRankOnlyEvent {
+  seasonId: number;
+  seasonName: string;
+  eventId: number;
+  eventName: string;
+  eventCategory: EventCategory;
+  sessions: TestoffRankOnlySession[];
+  rankings: TestoffRankOnlyEntry[];
+}
+
+export interface TestoffRankOnlyDashboardData {
+  configured: boolean;
+  activeSeasonId?: number;
+  seasons: TestoffSeason[];
+  eventRankings: TestoffRankOnlyEvent[];
 }
 
 export interface TestoffAdminData {

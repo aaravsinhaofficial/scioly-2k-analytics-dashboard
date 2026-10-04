@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { safeInternalPath } from "@/lib/app-url";
-import { getAuthenticatedStudent } from "@/lib/auth";
+import { getAuthenticatedStudent, recordLegalAcceptance } from "@/lib/auth";
+import { LEGAL_ACCEPTANCE_COOKIE, LEGAL_VERSION } from "@/lib/legal";
 import { getSupabaseServerClient, hasSupabaseConfig } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +30,19 @@ export async function GET(request: NextRequest) {
   async function redirectAfterSuccessfulAuth() {
     const student = await getAuthenticatedStudent();
     if (student) {
-      return NextResponse.redirect(new URL(next, request.url));
+      const acceptedCurrentPolicies = request.cookies.get(LEGAL_ACCEPTANCE_COOKIE)?.value === LEGAL_VERSION;
+      if (acceptedCurrentPolicies) {
+        const saved = await recordLegalAcceptance(student.id, new Date().toISOString(), LEGAL_VERSION);
+        if (!saved) {
+          await authClient.auth.signOut();
+          return NextResponse.redirect(new URL("/login?error=legal_acceptance_failed", request.url));
+        }
+      }
+      const response = NextResponse.redirect(new URL(next, request.url));
+      if (acceptedCurrentPolicies) {
+        response.cookies.delete(LEGAL_ACCEPTANCE_COOKIE);
+      }
+      return response;
     }
 
     await authClient.auth.signOut();

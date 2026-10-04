@@ -345,7 +345,7 @@ export function AccountManager({ students, teams = [] }: AccountManagerProps) {
             disabled={archived}
             onChange={(event) => updateRow(row.id, { profileEvents: event.target.value })}
             className={inputClassName}
-            placeholder="Water Quality, Tower"
+            placeholder="Water Quality, Boomilever"
           />
         </FormField>
       </>
@@ -441,7 +441,7 @@ export function AccountManager({ students, teams = [] }: AccountManagerProps) {
                 value={newStudent.profileEvents}
                 onChange={(event) => setNewStudent((current) => ({ ...current, profileEvents: event.target.value }))}
                 className={inputClassName}
-                placeholder="Water Quality, Tower, Codebusters"
+                placeholder="Water Quality, Boomilever, Codebusters"
               />
               <span className="block font-normal text-zinc-500">Separate multiple events with commas. These can be changed at any time.</span>
             </FormField>

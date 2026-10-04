@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { StatTile } from "@/components/StatTile";
 import { TestoffRankings } from "@/components/testoffs/TestoffRankings";
 import { getCurrentUser } from "@/lib/data";
-import { loadTestoffDashboardData } from "@/lib/testoff-data";
+import { loadTestoffDashboardData, rankOnlyTestoffDashboard } from "@/lib/testoff-data";
 import { roleMeets } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ export default async function TestoffsPage({
   const initialSeasonId = Number(search.season);
   const initialEventId = Number(search.event);
   const currentUser = await getCurrentUser();
-  const data = await loadTestoffDashboardData();
+  const data = rankOnlyTestoffDashboard(await loadTestoffDashboardData());
   const selectedSeasonId = data.activeSeasonId ?? data.eventRankings[0]?.seasonId;
   const currentGroups = data.eventRankings.filter((group) => group.seasonId === selectedSeasonId);
   const sessionCount = currentGroups.reduce((sum, group) => sum + group.sessions.length, 0);
@@ -32,7 +32,7 @@ export default async function TestoffsPage({
         <PageHeader
           label="Team selection"
           title="Testoff rankings"
-          description="Compare scores within each event. Results are normalized so sessions with different maximum scores can be combined fairly."
+          description="Compare rank order within each event. Exact testoff scores remain restricted to officers."
           actions={roleMeets(currentUser.role, "officer") ? (
             <Link href="/admin/testoffs" className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200">
               Enter testoff scores
@@ -54,11 +54,11 @@ export default async function TestoffsPage({
           <div className="grid gap-3 border-t border-court-line p-4 text-sm leading-6 text-zinc-500 md:grid-cols-2">
             <div className="flex gap-3 rounded-md bg-court-elevated p-3">
               <ClipboardList className="mt-0.5 h-4 w-4 shrink-0 text-cyan-300" aria-hidden="true" />
-              Raw scores are converted to a percentage of each session maximum.
+              Officers enter testoff results through the protected score-entry page.
             </div>
             <div className="flex gap-3 rounded-md bg-court-elevated p-3">
               <Trophy className="mt-0.5 h-4 w-4 shrink-0 text-cyan-300" aria-hidden="true" />
-              Percentages are weighted, combined, and ranked from highest to lowest.
+              Team members see rank order only; raw and normalized scores stay private.
             </div>
           </div>
         </details>

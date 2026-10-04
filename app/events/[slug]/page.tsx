@@ -1,13 +1,8 @@
 import { redirect } from "next/navigation";
+import { sciolyEvents } from "@/lib/resource-data";
 
 export function generateStaticParams() {
-  return [
-    { slug: "thermodynamics" },
-    { slug: "designer-genes" },
-    { slug: "fossils" },
-    { slug: "experimental-design" },
-    { slug: "engineering-cad" },
-  ];
+  return sciolyEvents.map((event) => ({ slug: event.slug }));
 }
 
 export default async function EventRedirectPage({

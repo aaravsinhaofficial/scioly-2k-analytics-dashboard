@@ -166,7 +166,10 @@ function cloneStaticEvent(event: SciolyEventHub): SciolyEventHub {
     topics: [...event.topics],
     resources: event.resources.map((item) => ({ ...item })),
     questions: event.questions.map((item) => ({ ...item })),
-    tests: event.tests.map((item) => ({ ...item })),
+    tests: event.tests.map((item) => ({
+      ...item,
+      questions: item.questions?.map((question) => ({ ...question })),
+    })),
   };
 }
 

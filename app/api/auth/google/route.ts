@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { safeInternalPath } from "@/lib/app-url";
 import { getSupabaseServerClient, hasSupabaseConfig } from "@/lib/supabase";
+import { LEGAL_ACCEPTANCE_COOKIE, LEGAL_VERSION } from "@/lib/legal";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,19 @@ export async function POST(request: Request) {
     );
   }
 
-  const body = (await request.json().catch(() => ({}))) as { next?: string };
+  const body = (await request.json().catch(() => ({}))) as {
+    next?: string;
+    signup?: boolean;
+    acceptedPolicies?: boolean;
+    legalVersion?: string;
+  };
+  const acceptsCurrentPolicies = body.acceptedPolicies === true && body.legalVersion === LEGAL_VERSION;
+  if (!acceptsCurrentPolicies) {
+    return NextResponse.json(
+      { ok: false, error: "Agree to the current Terms of Service and acknowledge the Privacy Policy." },
+      { status: 400 }
+    );
+  }
   const supabase = await getSupabaseServerClient();
   if (!supabase) {
     return NextResponse.json({ ok: false, error: "Auth client unavailable." }, { status: 500 });
@@ -35,5 +48,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: error?.message ?? "Could not start Google sign-in." }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, redirectTo: data.url });
+  const response = NextResponse.json({ ok: true, redirectTo: data.url });
+  if (acceptsCurrentPolicies) {
+    response.cookies.set(LEGAL_ACCEPTANCE_COOKIE, LEGAL_VERSION, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: origin.startsWith("https://"),
+      path: "/",
+      maxAge: 10 * 60
+    });
+  }
+  return response;
 }

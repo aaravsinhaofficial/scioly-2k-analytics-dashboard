@@ -1,3 +1,5 @@
+import { buildPracticeQuestions, buildPracticeTests } from "@/lib/practice-sets";
+
 export type ResourceType = "Notes" | "Video" | "Cheat Sheet" | "Guide" | "Rules" | "Test";
 export type Difficulty = "Rookie" | "Pro" | "All-Star";
 
@@ -26,13 +28,25 @@ export interface SciolyQuestion {
 
 export interface SciolyTest {
   libraryId?: number;
+  testNumber?: number;
   title: string;
   format: "Mini Test" | "Full Test" | "Testoff Set";
   difficulty: Difficulty;
   description: string;
+  durationMinutes?: number;
+  questions?: SciolyPracticePrompt[];
   url?: string;
   body?: string;
   managed?: boolean;
+}
+
+export interface SciolyPracticePrompt {
+  number: number;
+  points: number;
+  prompt: string;
+  answer: string;
+  options?: string[];
+  correctOption?: number;
 }
 
 export interface SciolyEventHub {
@@ -68,38 +82,42 @@ function linkedResource(
   recommended = false,
 ): SciolyResource {
   const resolvedDescription = title === "Official Science Olympiad event hub"
-    ? "Science Olympiad's official event page. The 2027 material may still be pending or marked archived, so confirm the page has updated before treating it as final."
+    ? "Science Olympiad's current event page with official updates and supporting resources. The Rules Manual, corrections, and clarifications take precedence."
     : description;
   return { title, type, topic, difficulty, description: resolvedDescription, url, recommended };
 }
 
 function eventHub(seed: EventSeed): SciolyEventHub {
-  const representedTopics = new Set(seed.resources.map((resource) => resource.topic));
+  const resources = seed.category === "Build"
+    ? seed.resources.filter((resource) => resource.type !== "Guide")
+    : seed.resources;
+  const representedTopics = new Set(resources.map((resource) => resource.topic));
   const coveredTopics = seed.topics.filter((topic) => representedTopics.has(topic)).length;
   const coverageRatio = coveredTopics / Math.max(1, seed.topics.length);
   return {
     ...seed,
     season: 2027,
-    rulesStatus: "Draft",
+    rulesStatus: "Official",
     // This is derived from named topics that have at least one vetted resource,
     // rather than an arbitrary event rating.
     coverageScore: Math.round(coverageRatio * 100),
-    readiness: seed.resources.length === 0
+    readiness: resources.length === 0
       ? "Needs Uploads"
-      : coverageRatio >= 0.75 && seed.resources.length >= 4
+      : coverageRatio >= 0.75 && resources.length >= 4
         ? "Loaded"
         : "Building",
     lead: "Event lead not assigned",
-    questions: [],
-    tests: [],
+    resources,
+    questions: buildPracticeQuestions(seed),
+    tests: seed.category === "Build" ? [] : buildPracticeTests(seed),
   };
 }
 
 export const resourceAnnouncements = [
   {
-    label: "2027 season",
-    title: "The complete Division C slate is indexed",
-    body: "The 23 scored events are included, plus Code Craze as a clearly labeled featured trial. Check your tournament schedule before preparing for a trial event."
+    label: "Official 2027 season",
+    title: "The current Division C slate is indexed",
+    body: "All 23 scored events are included with current-season scope, plus the three featured trials in the 2027 manual. Confirm which trials your tournament offers."
   },
   {
     label: "Source quality",
@@ -108,8 +126,8 @@ export const resourceAnnouncements = [
   },
   {
     label: "Rules status",
-    title: "Use the draft for scope, not final dimensions",
-    body: "The supplied Summer Workshop rules are marked draft. Always use the official event page for final rules, corrections, and clarifications before building or competing."
+    title: "Official rules are live",
+    body: "The catalog follows the official 2027 Division C manual supplied by the team. Recheck national corrections, clarifications, and tournament notices before every competition."
   }
 ];
 
@@ -252,18 +270,18 @@ export const sciolyEvents: SciolyEventHub[] = [
     slug: "code-craze",
     category: "Hybrid",
     isTrial: true,
-    tagline: "Featured trial: coding, Python, AI, cryptography, and computational thinking.",
+    tagline: "Featured trial: coding, debugging, computer science, AI, and cryptography.",
     description: "This is a featured trial rather than one of the 23 scored national events. Use the tournament schedule to confirm whether it will run locally, then prepare with executable coding practice.",
     starterPath: [
       "Confirm that your invitational, regional, or state tournament offers the trial.",
       "Complete the CodeHS Science Olympiad modules and write every example yourself.",
-      "Practice short Python tasks without autocomplete, then review AI and cryptography concepts."
+      "Practice short Python and Java tasks without autocomplete, then review AI and cryptography concepts."
     ],
-    topics: ["Python", "Algorithms", "Data structures", "AI and machine learning", "Cryptography", "Quantum computing"],
+    topics: ["Python and Java", "Programming concepts", "Debugging", "Algorithms", "AI and machine learning", "Cryptography"],
     resources: [
-      linkedResource("Science Olympiad featured trial description", "Rules", "Algorithms", "Rookie", "Official description of Code Craze; the page may still display the prior season while 2027 trial materials are prepared.", "https://www.soinc.org/learn/trial-events", true),
-      linkedResource("CodeHS: Science Olympiad Code Craze (HS)", "Guide", "Python", "Rookie", "The currently available course is labeled 2025–26, but its coding, AI, cryptography, Python, and quantum modules are useful foundations while 2027 materials are pending.", "https://codehs.com/course/ScienceOlympiadHS/overview"),
-      linkedResource("Official Python tutorial", "Guide", "Data structures", "Pro", "The Python documentation's tutorial for control flow, functions, collections, modules, and errors.", "https://docs.python.org/3/tutorial/"),
+      linkedResource("Science Olympiad featured trial description", "Rules", "Algorithms", "Rookie", "Official 2027 trial description, format, and links to the annual practice module.", "https://www.soinc.org/learn/trial-events", true),
+      linkedResource("CodeHS: Science Olympiad Code Craze (HS)", "Guide", "Debugging", "Rookie", "The official practice environment for coding, debugging, quizzes, programming concepts, AI, and cryptography.", "https://codehs.com/course/ScienceOlympiadHS/overview"),
+      linkedResource("Official Python tutorial", "Guide", "Python and Java", "Pro", "The Python documentation's tutorial for control flow, functions, collections, modules, and errors.", "https://docs.python.org/3/tutorial/"),
       linkedResource("Google Machine Learning Crash Course", "Guide", "AI and machine learning", "Pro", "Interactive lessons explaining models, classification, data, bias, and responsible ML.", "https://developers.google.com/machine-learning/crash-course?hl=en")
     ]
   }),
@@ -419,6 +437,46 @@ export const sciolyEvents: SciolyEventHub[] = [
     ]
   }),
   eventHub({
+    name: "Hydraulics",
+    slug: "hydraulics",
+    category: "Hybrid",
+    isTrial: true,
+    tagline: "Featured trial: fluid mechanics plus a hand-powered hydraulic device.",
+    description: "Connect density, pressure, gases, buoyancy, flow, and mechanical advantage to a reliable hand-powered device that moves objects accurately across a test surface.",
+    starterPath: [
+      "Confirm that your tournament offers the trial and review the official construction, impound, and safety requirements.",
+      "Master density, pressure, gas behavior, buoyancy, viscosity, flow, and mechanical advantage with units.",
+      "Prototype each hydraulic joint, measure repeatability and leakage, then practice the full object-moving task."
+    ],
+    topics: ["Density", "Fluid pressure", "Gas laws", "Buoyancy", "Flow and viscosity", "Hydraulic systems", "Device testing"],
+    resources: [
+      linkedResource("Science Olympiad featured trial description", "Rules", "Hydraulic systems", "Rookie", "Official 2027 trial listing and current rules entry point.", "https://www.soinc.org/learn/trial-events", true),
+      linkedResource("OpenStax University Physics: Fluid Mechanics", "Guide", "Flow and viscosity", "Rookie", "Free coverage of density, pressure, Pascal's principle, buoyancy, flow, continuity, viscosity, and Bernoulli's principle.", "https://openstax.org/books/university-physics-volume-1/pages/14-introduction"),
+      linkedResource("PhET: Under Pressure", "Guide", "Fluid pressure", "Rookie", "Interactive pressure and depth investigation with multiple fluids and measurement tools.", "https://phet.colorado.edu/en/simulations/under-pressure"),
+      linkedResource("NASA: Pascal's Principle and Hydraulics", "Guide", "Hydraulic systems", "Pro", "A classroom investigation connecting force, area, pressure, and hydraulic mechanical advantage.", "https://www.grc.nasa.gov/www/k-12/WindTunnel/Activities/Pascals_principle.html")
+    ]
+  }),
+  eventHub({
+    name: "Junkyard Challenge",
+    slug: "junkyard-challenge",
+    category: "Build",
+    isTrial: true,
+    tagline: "Featured trial: rapid on-site engineering from a limited material kit.",
+    description: "Prepare reusable design habits, measurement methods, material strategies, and mechanical concepts for an unknown on-site challenge without prebuilding the final device.",
+    starterPath: [
+      "Confirm that your tournament offers the trial and audit the current material-box, tool, safety, and impound rules.",
+      "Practice rapid sketches, task decomposition, measurement, calibration, and simple mechanisms with the allowed material kit.",
+      "Run timed mock challenges, preserve build time for testing, and review scoring tradeoffs before redesigning."
+    ],
+    topics: ["Engineering design", "Rapid prototyping", "Measurement", "Mechanical sorting", "Material strategy", "Calibration", "Time management"],
+    resources: [
+      linkedResource("Science Olympiad featured trial description", "Rules", "Engineering design", "Rookie", "Official 2027 trial listing and current rules entry point.", "https://www.soinc.org/learn/trial-events", true),
+      linkedResource("NASA/JPL: On Target", "Guide", "Engineering design", "Rookie", "A time-bounded design challenge built around constraints, prototyping, target accuracy, testing, and improvement.", "https://www.jpl.nasa.gov/edu/resources/lesson-plan/on-target/"),
+      linkedResource("NIST: SI Units - Mass", "Guide", "Measurement", "Rookie", "Authoritative reference for mass measurement, units, terminology, and traceability.", "https://www.nist.gov/pml/owm/si-units-mass"),
+      linkedResource("NASA/JPL Engineering Design Collection", "Guide", "Rapid prototyping", "Pro", "Hands-on challenges for turning constraints into prototypes, measuring performance, and iterating under a time limit.", "https://www.jpl.nasa.gov/edu/resources/collection/engineering-in-the-classroom/ngss-engineering-middle-school/")
+    ]
+  }),
+  eventHub({
     name: "Mission Possible",
     slug: "mission-possible",
     category: "Build",
@@ -449,7 +507,7 @@ export const sciolyEvents: SciolyEventHub[] = [
     ],
     topics: ["Rocket stability", "Pressure and thrust", "Aerodynamic drag", "Parachute design", "Deployment", "Flight testing"],
     resources: [
-      linkedResource("Official Science Olympiad event hub", "Rules", "Deployment", "Rookie", "Official page for safety, construction, launch, scoring, and 2027 updates; it may show an archive notice until the new materials publish.", "https://www.soinc.org/ping-pong-parachute-c", true),
+      linkedResource("Official Science Olympiad event hub", "Rules", "Deployment", "Rookie", "Official page for current safety, construction, launch, scoring, corrections, and supporting resources.", "https://www.soinc.org/ping-pong-parachute-c", true),
       linkedResource("NASA Beginner's Guide to Rockets", "Guide", "Rocket stability", "Rookie", "Authoritative lessons on rocket forces, stability, propulsion, flight, and performance.", "https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/guide-to-rockets/"),
       linkedResource("NASA/JPL: Parachute Design", "Guide", "Parachute design", "Rookie", "Engineering lesson for canopy variables, drag, payload, testing, and evidence-based redesign.", "https://www.jpl.nasa.gov/edu/resources/lesson-plan/parachute-design/"),
       linkedResource("NASA: Conditions for Rocket Stability", "Guide", "Rocket stability", "Pro", "Explains center of gravity, center of pressure, restoring moments, and stable rocket flight.", "https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/conditions-for-rocket-stability/"),
@@ -469,7 +527,7 @@ export const sciolyEvents: SciolyEventHub[] = [
     topics: ["Amino acids", "Protein structure", "Molecular visualization", "Structure-function", "PDB data", "Model construction"],
     resources: [
       linkedResource("Official Science Olympiad event hub", "Rules", "Model construction", "Rookie", "Official target, modeling requirements, scoring, and Science Olympiad resources.", "https://www.soinc.org/protein-modeling-c", true),
-      linkedResource("RCSB PDB: 3UBE", "Guide", "PDB data", "Pro", "Interactive structure page, sequence, annotations, ligands, and experimental data for the draft target structure.", "https://www.rcsb.org/structure/3UBE"),
+      linkedResource("RCSB PDB: 3UBE", "Guide", "PDB data", "Pro", "Interactive structure page, sequence, annotations, ligands, and experimental data for the 2027 target structure.", "https://www.rcsb.org/structure/3UBE"),
       linkedResource("Jmol molecular viewer", "Guide", "Molecular visualization", "Pro", "Official open-source viewer and documentation for inspecting structures, selecting residues, and creating molecular views.", "https://jmol.sourceforge.net/"),
       linkedResource("PDB-101", "Guide", "Protein structure", "Rookie", "Accessible structure-function articles, molecular stories, and visualization tools from RCSB PDB.", "https://pdb101.rcsb.org/")
     ]
@@ -515,7 +573,7 @@ export const sciolyEvents: SciolyEventHub[] = [
   eventHub({
     name: "Thermodynamics",
     slug: "thermodynamics",
-    category: "Hybrid",
+    category: "Study",
     tagline: "Thermal physics, prediction, and a lamp-heated water device.",
     description: "Connect microscopic models, heat transfer, phase behavior, calorimetry, and thermodynamic laws to a device that heats 100 mL of water and to a defensible final-temperature prediction.",
     starterPath: [
@@ -564,7 +622,7 @@ export const sciolyEvents: SciolyEventHub[] = [
     ],
     topics: ["Lift and drag", "Stability and trim", "Rubber power", "Propellers", "Construction", "Flight testing"],
     resources: [
-      linkedResource("Official Science Olympiad event hub", "Rules", "Construction", "Rookie", "Official aircraft dimensions, bonus configuration, scoring, and 2027 updates; it may show archived content until new materials publish.", "https://www.soinc.org/wright-stuff-c", true),
+      linkedResource("Official Science Olympiad event hub", "Rules", "Construction", "Rookie", "Official current aircraft constraints, scoring, corrections, and supporting resources.", "https://www.soinc.org/wright-stuff-c", true),
       linkedResource("National Free Flight Society: Science Olympiad", "Guide", "Flight testing", "Rookie", "Event-specific indoor free-flight articles, videos, plans, and experienced-builder guidance.", "https://www.freeflight.org/science-olympiad/"),
       linkedResource("NASA Beginner's Guide to Aeronautics", "Guide", "Lift and drag", "Rookie", "Authoritative explanations of aerodynamic forces, airfoils, stability, performance, and propulsion.", "https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/"),
       linkedResource("NASA: Propellers", "Guide", "Propellers", "Pro", "Explains how propellers generate thrust and how geometry, speed, and airflow affect performance.", "https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/propellers/")

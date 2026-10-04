@@ -2,6 +2,8 @@
 
 Full-stack Science Olympiad team analytics for Obra D Tompkins High School. The app tracks competition results, testoffs, practice points, player and event rankings, A/B/C rosters, approvals, and an admin audit trail.
 
+The built-in event library follows the official 2027 Division C slate: 23 scored events plus Code Craze, Hydraulics, and Junkyard Challenge as clearly labeled featured trials. Every study, lab, and hybrid event includes ten original content practice sets; the first three are 20-question MCQ tests. Build-event libraries intentionally omit tests and build guides. Official Science Olympiad rules, corrections, clarifications, and tournament notices remain controlling for competition decisions.
+
 ## Stack
 
 - Next.js 15 and TypeScript
@@ -24,7 +26,7 @@ Development runs with demo data when Supabase variables are absent. Production f
 
 1. Create a Supabase project, either directly or from **Vercel → Project → Storage → Create Database → Supabase**.
 2. Open the Supabase SQL editor.
-3. Run the complete [`supabase/schema.sql`](supabase/schema.sql) file once.
+3. Run the complete [`supabase/schema.sql`](supabase/schema.sql) file once. The schema also creates the private `point-evidence` Storage bucket, interactive-test tables, and team flashcard tables.
 4. In Supabase Auth URL settings, set:
    - Site URL: your canonical production URL (currently `https://www.sciolytracker.com`)
    - Redirect URLs: `https://www.sciolytracker.com/auth/callback` and `https://sciolytracker.com/auth/callback`
@@ -99,7 +101,10 @@ Set `www.sciolytracker.com` as the primary production domain and redirect `sciol
 ## Operational workflow
 
 - Students submit practice logs; officers approve or reject them.
+- Students can attach up to five private images, audio/video files, or PDFs and an optional Google Drive link to a practice log. The submitting member and officers/admins can open that evidence. Uploaded files are type- and size-limited, checked against binary file signatures, kept private, and served as short-lived downloads.
+- Signed-in members can create team flashcard decks manually or import `front,back` CSV data, share deck links, and cast one upvote or downvote per deck. CSV source files are parsed in the browser and are not uploaded.
 - Officers import Tompkins tournament results from CSV or enter testoff sessions and scores.
 - Testoff rankings normalize raw score by the session maximum and weight.
 - Admins manage accounts, roles, A/B/C rosters, custom point categories, and audit reversals.
+- New account creation records acceptance of the current Terms of Service and acknowledgment of the Privacy Policy.
 - Competition imports retain the full field for strength-of-schedule calculations but credit only schools matching the configured Tompkins aliases.

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { StatusBadge } from "@/components/StatusBadge";
+import { PointEvidenceList } from "@/components/points/PointEvidenceList";
 import type { PointHistoryRow } from "@/lib/types";
 import { formatDate, formatNumber } from "@/lib/utils";
 
@@ -92,7 +93,11 @@ export function PointHistoryTable({
                 return (
                   <tr key={row.id} className="border-t border-court-line align-middle">
                     <td className="px-4 py-3 text-zinc-500">{formatDate(row.date)}</td>
-                    <td className="px-4 py-3 font-medium text-white">{row.activity}</td>
+                    <td className="px-4 py-3 font-medium text-white">
+                      <div>{row.activity}</div>
+                      {row.details ? <div className="mt-1 max-w-md whitespace-pre-wrap text-xs font-normal leading-5 text-zinc-500">{row.details}</div> : null}
+                      <PointEvidenceList evidence={row.evidence} />
+                    </td>
                     <td className="px-4 py-3 text-right font-semibold tabular-nums text-white">{formatNumber(row.points)}</td>
                     <td className="px-4 py-3"><StatusBadge status={row.status} /></td>
                     <td className="max-w-64 px-4 py-3 text-zinc-500">

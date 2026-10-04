@@ -46,15 +46,11 @@ export default async function ResourceEventPage({
           )}
         />
 
-        {event.isTrial || event.rulesStatus === "Draft" ? (
-          <section className={`rounded-md border p-4 sm:p-5 ${event.isTrial ? "border-amber-300/40 bg-amber-300/10" : "border-court-line bg-court-panel"}`}>
-            <div className={`text-sm font-semibold ${event.isTrial ? "text-amber-200" : "text-white"}`}>
-              {event.isTrial ? "Featured trial — confirm your tournament offers it" : "2027 draft-scope notice"}
-            </div>
+        {event.isTrial ? (
+          <section className="rounded-md border border-amber-300/40 bg-amber-300/10 p-4 sm:p-5">
+            <div className="text-sm font-semibold text-amber-200">Featured trial — confirm your tournament offers it</div>
             <p className="mt-1 text-sm leading-6 text-zinc-600">
-              {event.isTrial
-                ? "Code Craze is listed separately from the 23 scored national events. Its library is available for teams whose local schedule includes the trial."
-                : "The supplied Summer Workshop rules are marked draft. Use this hub to prepare, but verify final dimensions, permitted materials, and corrections on the official Science Olympiad page before competing."}
+              {event.name} appears in the 2027 manual as a featured trial rather than one of the 23 scored national events. Use this library when your invitational, regional, or state schedule includes it.
             </p>
           </section>
         ) : null}
@@ -194,6 +190,8 @@ export default async function ResourceEventPage({
                     <a href={test.url} target="_blank" rel="noreferrer" className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200">Open practice test ↗</a>
                   ) : test.libraryId ? (
                     <Link href={`/practice/tests/${test.libraryId}`} className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200">Start interactive test →</Link>
+                  ) : test.testNumber ? (
+                    <Link href={`/practice/${event.slug}/${test.testNumber}`} className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200">Open original practice test →</Link>
                   ) : (
                     <div className="mt-4 rounded-md border border-court-line bg-court-panel px-4 py-3 text-sm text-zinc-500">No test file has been uploaded yet.</div>
                   )}

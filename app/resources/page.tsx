@@ -20,12 +20,19 @@ export default async function ResourcesPage() {
         <PageHeader
           label="Preparation"
           title="Event resources"
-          description="Open any 2027 Division C event for a focused study path and vetted links. Team questions and interactive tests appear here as officers add them."
-          actions={roleMeets(currentUser.role, "officer") ? (
-            <Link href="/admin/library" className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200">
-              Manage library
-            </Link>
-          ) : undefined}
+          description="Open any official 2027 Division C event for a focused study path and vetted links. Every non-build event also includes ten original practice tests, and featured trials are clearly labeled."
+          actions={(
+            <div className="flex flex-wrap gap-2">
+              <Link href="/flashcards" className="inline-flex min-h-11 items-center justify-center rounded-md border border-court-line px-4 text-sm font-semibold text-cyan-300 hover:border-cyan-400 hover:text-white">Team flashcards</Link>
+              <a href="https://www.soinc.org/rules-2027" target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center justify-center rounded-md border border-court-line px-4 text-sm font-semibold text-cyan-300 hover:border-cyan-400 hover:text-white">2027 rules ↗</a>
+              <a href="https://www.soinc.org/events/rules-corrections" target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center justify-center rounded-md border border-court-line px-4 text-sm font-semibold text-cyan-300 hover:border-cyan-400 hover:text-white">Corrections ↗</a>
+              {roleMeets(currentUser.role, "officer") ? (
+                <Link href="/admin/library" className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-cyan-200">
+                  Manage library
+                </Link>
+              ) : null}
+            </div>
+          )}
         />
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

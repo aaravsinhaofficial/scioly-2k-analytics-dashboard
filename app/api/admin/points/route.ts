@@ -4,6 +4,11 @@ import { getCurrentDemoUser } from "@/lib/analytics";
 import { invalidateAnalyticsCache } from "@/lib/analytics-cache";
 import { getAuthenticatedStudent } from "@/lib/auth";
 import { mockPointLogs, mockStudents } from "@/lib/seed";
+import {
+  pointActivityDetailsFromMetadata,
+  pointEvidenceForClient,
+  storedPointEvidenceFromMetadata
+} from "@/lib/point-evidence";
 import { getSupabaseAdmin, isDemoMode } from "@/lib/supabase";
 import { roleMeets } from "@/lib/utils";
 import type { ActivityType } from "@/lib/types";
@@ -16,19 +21,22 @@ function pointRow(
 ) {
   const studentId = String(row.student_id ?? "");
   const activityType = String(row.activity_type ?? "custom_activity") as ActivityType;
+  const id = Number(row.id);
   return {
-    id: Number(row.id),
+    id,
     studentId,
     studentName: studentNames.get(studentId) ?? "Unknown student",
     activityType,
     activity: String(row.custom_label ?? "") || activityLabels[activityType] || "Custom activity",
     customLabel: typeof row.custom_label === "string" ? row.custom_label : null,
+    details: pointActivityDetailsFromMetadata(row.metadata) ?? null,
     points: Number(row.points ?? 0),
     minutes: Number(row.minutes ?? 0),
     quantity: typeof row.quantity === "number" ? row.quantity : null,
     status: String(row.status ?? "pending"),
     submittedAt: String(row.submitted_at ?? ""),
-    notes: typeof row.notes === "string" ? row.notes : null
+    notes: typeof row.notes === "string" ? row.notes : null,
+    evidence: pointEvidenceForClient(id, row.metadata)
   };
 }
 
@@ -87,19 +95,21 @@ export async function GET(request: Request) {
         activityType: point.activityType,
         activity: point.customLabel || point.activityType.replaceAll("_", " "),
         customLabel: point.customLabel ?? null,
+        details: point.details ?? null,
         points: point.points,
         minutes: point.minutes,
         quantity: point.quantity ?? null,
         status: point.status,
         submittedAt: point.submittedAt,
-        notes: point.notes ?? null
+        notes: point.notes ?? null,
+        evidence: point.evidence ?? []
       }));
     return NextResponse.json({ ok: true, rows }, { headers: { "cache-control": "private, no-store" } });
   }
 
   let query = supabase
     .from("grind_points")
-    .select("id,student_id,activity_type,custom_label,points,minutes,quantity,status,submitted_at,notes")
+    .select("id,student_id,activity_type,custom_label,points,minutes,quantity,status,submitted_at,notes,metadata")
     .order("submitted_at", { ascending: false })
     .limit(limit);
   if (studentId) query = query.eq("student_id", studentId);
@@ -296,6 +306,12 @@ export async function PATCH(request: Request) {
       if (!student || !existing) {
         return NextResponse.json({ ok: false, error: "Point log or student not found." }, { status: 404 });
       }
+      if (existing.studentId !== studentId && (existing.evidence?.length ?? 0) > 0) {
+        return NextResponse.json(
+          { ok: false, error: "Submissions with evidence cannot be reassigned. Create a new point log for the other member." },
+          { status: 409 }
+        );
+      }
       return NextResponse.json({
         ok: true,
         persisted: false,
@@ -329,6 +345,15 @@ export async function PATCH(request: Request) {
     }
     if (!student) {
       return NextResponse.json({ ok: false, error: "Student not found." }, { status: 404 });
+    }
+    if (
+      String(before.student_id) !== studentId &&
+      storedPointEvidenceFromMetadata(before.metadata).length > 0
+    ) {
+      return NextResponse.json(
+        { ok: false, error: "Submissions with evidence cannot be reassigned. Create a new point log for the other member." },
+        { status: 409 }
+      );
     }
     if (student.is_active === false && String(before.student_id) !== studentId) {
       return NextResponse.json({ ok: false, error: "Restore this person before moving a point log to them." }, { status: 409 });

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Check, Loader2, X } from "lucide-react";
 import { Avatar } from "@/components/Avatar";
 import { StatusBadge } from "@/components/StatusBadge";
+import { PointEvidenceList } from "@/components/points/PointEvidenceList";
 import { activityLabels } from "@/lib/activity";
 import type { GrindPointLog, PlayerDetail } from "@/lib/types";
 import { formatDate, formatNumber } from "@/lib/utils";
@@ -93,7 +94,11 @@ export function ApprovalQueue({ queue }: ApprovalQueueProps) {
                       </div>
                     </Link>
                   </td>
-                  <td className="px-4 py-4 font-bold text-white">{activityLabels[item.activityType]}</td>
+                  <td className="px-4 py-4">
+                    <div className="font-bold text-white">{item.customLabel || activityLabels[item.activityType]}</div>
+                    {item.details ? <p className="mt-1 max-w-md whitespace-pre-wrap text-xs leading-5 text-zinc-500">{item.details}</p> : null}
+                    <PointEvidenceList evidence={item.evidence} />
+                  </td>
                   <td className="px-4 py-4 text-zinc-500">{formatDate(item.submittedAt)}</td>
                   <td className="px-4 py-4 text-right font-medium text-white">
                     {item.minutes > 0 ? `${item.minutes} min` : item.quantity ? `${item.quantity} items` : "—"}

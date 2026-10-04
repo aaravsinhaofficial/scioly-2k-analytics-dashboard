@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getSupabaseAdmin, hasSupabaseConfig } from "@/lib/supabase";
+import { pointActivityDetailsFromMetadata, pointEvidenceForClient } from "@/lib/point-evidence";
 import type { AnalyticsDataset } from "@/lib/analytics";
 import type {
   ActivityType,
@@ -39,12 +40,6 @@ function stringValue(value: unknown, fallback = "") {
 
 function stringArray(value: unknown) {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
-}
-
-function recordValue(value: unknown) {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
 }
 
 function userRole(value: unknown): UserRole {
@@ -289,22 +284,26 @@ export async function loadSupabaseAnalyticsDataset(): Promise<AnalyticsDataset> 
     createdAt: stringValue(row.created_at, new Date(0).toISOString())
   }));
 
-  const pointLogs: GrindPointLog[] = pointRows.map((row) => ({
-    id: numberValue(row.id),
-    studentId: stringValue(row.student_id),
-    activityType: stringValue(row.activity_type, "custom_activity") as ActivityType,
-    points: numberValue(row.points),
-    minutes: numberValue(row.minutes),
-    quantity: optionalNumber(row.quantity),
-    customLabel: stringValue(row.custom_label) || undefined,
-    customCategoryId: optionalNumber(row.custom_category_id),
-    status: pointStatus(row.status),
-    submittedAt: stringValue(row.submitted_at, new Date(0).toISOString()),
-    approvedAt: stringValue(row.approved_at) || undefined,
-    approvedBy: stringValue(row.approved_by) || undefined,
-    notes: stringValue(row.notes) || undefined,
-    metadata: recordValue(row.metadata)
-  }));
+  const pointLogs: GrindPointLog[] = pointRows.map((row) => {
+    const id = numberValue(row.id);
+    return {
+      id,
+      studentId: stringValue(row.student_id),
+      activityType: stringValue(row.activity_type, "custom_activity") as ActivityType,
+      points: numberValue(row.points),
+      minutes: numberValue(row.minutes),
+      quantity: optionalNumber(row.quantity),
+      customLabel: stringValue(row.custom_label) || undefined,
+      customCategoryId: optionalNumber(row.custom_category_id),
+      details: pointActivityDetailsFromMetadata(row.metadata),
+      status: pointStatus(row.status),
+      submittedAt: stringValue(row.submitted_at, new Date(0).toISOString()),
+      approvedAt: stringValue(row.approved_at) || undefined,
+      approvedBy: stringValue(row.approved_by) || undefined,
+      notes: stringValue(row.notes) || undefined,
+      evidence: pointEvidenceForClient(id, row.metadata)
+    };
+  });
 
   const snapshots: OvrSnapshot[] = snapshotRows.map((row) => ({
     id: numberValue(row.id),

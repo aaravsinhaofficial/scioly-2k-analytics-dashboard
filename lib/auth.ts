@@ -126,6 +126,8 @@ export async function ensureStudentProfile(input: {
   email: string;
   name?: string | null;
   grade?: number | null;
+  legalAcceptedAt?: string;
+  legalVersion?: string;
 }) {
   const existingRow = await fetchStudentByAuthUser(input.authUserId, input.email);
   if (existingRow?.is_active === false) {
@@ -151,20 +153,34 @@ export async function ensureStudentProfile(input: {
   const defaultRole = defaultRoleForEmail(input.email);
   if (existing) {
     const admin = getSupabaseAdmin();
-    const updates: { auth_user_id?: string; role?: UserRole } = {};
+    const requiresLegalPersistence = Boolean(input.legalAcceptedAt && input.legalVersion);
+    const updates: {
+      auth_user_id?: string;
+      role?: UserRole;
+      terms_accepted_at?: string;
+      privacy_acknowledged_at?: string;
+      legal_version?: string;
+    } = {};
     if (!existingRow?.auth_user_id) {
       updates.auth_user_id = input.authUserId;
     }
     if (defaultRole === "admin" && existing.role !== "admin") updates.role = "admin";
-    if (admin && Object.keys(updates).length > 0) {
-      const { data } = await admin
+    if (input.legalAcceptedAt && input.legalVersion) {
+      updates.terms_accepted_at = input.legalAcceptedAt;
+      updates.privacy_acknowledged_at = input.legalAcceptedAt;
+      updates.legal_version = input.legalVersion;
+    }
+    if (Object.keys(updates).length > 0) {
+      if (!admin) return requiresLegalPersistence ? null : existing;
+      const { data, error } = await admin
         .from("students")
         .update(updates)
         .eq("id", existing.id)
         .eq("is_active", true)
         .select("*")
         .single();
-      if (data) return studentFromRow(data as StudentRow);
+      if (!error && data) return studentFromRow(data as StudentRow);
+      if (requiresLegalPersistence) return null;
     }
     return existing;
   }
@@ -188,7 +204,10 @@ export async function ensureStudentProfile(input: {
         role: defaultRole,
         ovr_rating: 60,
         total_points: 0,
-        prev_ovr: 60
+        prev_ovr: 60,
+        terms_accepted_at: input.legalAcceptedAt ?? null,
+        privacy_acknowledged_at: input.legalAcceptedAt ?? null,
+        legal_version: input.legalVersion ?? null
       },
       { onConflict: "email" }
     )
@@ -201,6 +220,23 @@ export async function ensureStudentProfile(input: {
 
   const createdOrLinked = data as StudentRow;
   return createdOrLinked.is_active === false ? null : studentFromRow(createdOrLinked);
+}
+
+export async function recordLegalAcceptance(studentId: string, acceptedAt: string, legalVersion: string) {
+  const admin = getSupabaseAdmin();
+  if (!admin) return false;
+  const { data, error } = await admin
+    .from("students")
+    .update({
+      terms_accepted_at: acceptedAt,
+      privacy_acknowledged_at: acceptedAt,
+      legal_version: legalVersion
+    })
+    .eq("id", studentId)
+    .eq("is_active", true)
+    .select("id")
+    .maybeSingle();
+  return !error && Boolean(data?.id);
 }
 
 export async function getAuthenticatedStudent() {
