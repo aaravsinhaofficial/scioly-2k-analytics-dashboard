@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { safeInternalPath } from "@/lib/app-url";
 import { getSupabaseServerClient, hasSupabaseConfig } from "@/lib/supabase";
 import { LEGAL_ACCEPTANCE_COOKIE, LEGAL_VERSION } from "@/lib/legal";
+import { readJsonObject } from "@/lib/json-request";
 
 export const dynamic = "force-dynamic";
 
@@ -13,12 +14,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const body = (await request.json().catch(() => ({}))) as {
-    next?: string;
-    signup?: boolean;
-    acceptedPolicies?: boolean;
-    legalVersion?: string;
-  };
+  const body = await readJsonObject(request);
+  if (!body || (body.next !== undefined && typeof body.next !== "string") ||
+    (body.signup !== undefined && typeof body.signup !== "boolean")) {
+    return NextResponse.json({ ok: false, error: "Send a valid Google sign-in request." }, { status: 400 });
+  }
   const acceptsCurrentPolicies = body.acceptedPolicies === true && body.legalVersion === LEGAL_VERSION;
   if (!acceptsCurrentPolicies) {
     return NextResponse.json(

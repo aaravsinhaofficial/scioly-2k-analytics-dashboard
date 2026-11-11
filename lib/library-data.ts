@@ -179,7 +179,7 @@ function liveOnlyEvent(slug: string, name: string, items: LibraryItem[]): Scioly
     name,
     slug,
     category: "Study",
-    coverageScore: Math.min(100, 20 + items.length * 12),
+    coverageScore: items.length ? Math.min(100, 20 + items.length * 12) : 0,
     readiness: items.length >= 4 ? "Building" : "Needs Uploads",
     lead: "Team library",
     tagline: "Team-contributed resources and practice for this event.",
@@ -198,8 +198,16 @@ function liveOnlyEvent(slug: string, name: string, items: LibraryItem[]): Scioly
 
 export async function getLibraryEvents(): Promise<SciolyEventHub[]> {
   const configured = hasSupabaseAdminConfig();
-  const liveItems = configured ? await loadCachedActiveLibraryItems() : [];
+  const [liveItems, configuredNames] = configured
+    ? await Promise.all([loadCachedActiveLibraryItems(), loadCachedConfiguredEventNames()])
+    : [[], []];
   const bySlug = new Map(sciolyEvents.map((event) => [event.slug, cloneStaticEvent(event)]));
+  // Tournament imports can add events outside the standard slate. Dashboard
+  // and profile links must still resolve before the team uploads resources.
+  for (const name of configuredNames) {
+    const slug = canonicalEventSlug(name);
+    if (slug && !bySlug.has(slug)) bySlug.set(slug, liveOnlyEvent(slug, name, []));
+  }
   const grouped = new Map<string, LibraryItem[]>();
   for (const item of liveItems) {
     const items = grouped.get(item.eventSlug);

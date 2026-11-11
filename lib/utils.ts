@@ -11,10 +11,14 @@ export function formatNumber(value: number, options?: Intl.NumberFormatOptions) 
 }
 
 export function formatDate(date: string) {
+  // Calendar dates have no time zone. Parsing them as UTC midnight shifts the
+  // displayed tournament day backwards for users west of UTC.
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(date);
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
-    year: "numeric"
+    year: "numeric",
+    ...(dateOnly ? { timeZone: "UTC" } : {})
   }).format(new Date(date));
 }
 

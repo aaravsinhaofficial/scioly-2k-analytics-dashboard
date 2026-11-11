@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { recordFlashcardChange } from "@/lib/flashcard-audit";
 import { getCurrentDemoUser } from "@/lib/analytics";
 import { getAuthenticatedStudent } from "@/lib/auth";
 import { getSupabaseAdmin, isDemoMode } from "@/lib/supabase";
@@ -12,7 +13,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!currentUser) return NextResponse.json({ ok: false, error: "Sign in to vote." }, { status: 401 });
   const { id } = await params;
   const body = await request.json().catch(() => null) as { value?: unknown } | null;
-  const value = Number(body?.value);
+  const value = body?.value;
   if (value !== -1 && value !== 0 && value !== 1) {
     return NextResponse.json({ ok: false, error: "Vote must be up, down, or cleared." }, { status: 400 });
   }
@@ -42,6 +43,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         { onConflict: "deck_id,student_id" },
       );
   if (mutation.error) return NextResponse.json({ ok: false, error: "Could not save your vote." }, { status: 500 });
+  await recordFlashcardChange({ action: "flashcard.vote", deckId: id });
   const { data: votes, error: votesError } = await supabase.from("flashcard_votes").select("value").eq("deck_id", id);
   if (votesError) return NextResponse.json({ ok: false, error: "Vote saved, but the total could not be refreshed." }, { status: 500 });
   const values = (votes ?? []).map((vote) => Number(vote.value));

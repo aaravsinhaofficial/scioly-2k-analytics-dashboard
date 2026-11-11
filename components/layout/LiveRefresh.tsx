@@ -20,7 +20,7 @@ export function LiveRefresh() {
         const response = await fetch("/api/version", { cache: "no-store", headers: { accept: "application/json" } });
         if (!response.ok) return;
         const payload = await response.json() as { version?: string };
-        if (!payload.version) return;
+        if (cancelled || !payload.version) return;
         if (versionRef.current && versionRef.current !== payload.version) {
           versionRef.current = payload.version;
           window.dispatchEvent(new Event("scioly:data-updated"));
@@ -28,6 +28,8 @@ export function LiveRefresh() {
         } else {
           versionRef.current = payload.version;
         }
+      } catch {
+        // A temporary outage is retried by the next poll, without interrupting the current task.
       } finally {
         inFlight = false;
       }

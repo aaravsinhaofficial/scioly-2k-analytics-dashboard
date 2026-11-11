@@ -79,7 +79,7 @@ export function AuthCard({ mode, publicSignupEnabled = true }: AuthCardProps) {
       return;
     }
 
-    if (needsPassword) {
+    if (needsPassword && mode !== "login") {
       const validation = validatePassword(password);
       if (!validation.valid) {
         setError(validation.errors.join(" "));

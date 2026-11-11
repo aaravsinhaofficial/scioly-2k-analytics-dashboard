@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { validatePassword } from "@/lib/password";
+import { readJsonObject } from "@/lib/json-request";
 import { getSupabaseServerClient, hasSupabaseConfig } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -12,8 +13,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const body = (await request.json()) as { password?: string };
-  const password = body.password ?? "";
+  const body = await readJsonObject(request);
+  const password = typeof body?.password === "string" ? body.password : "";
   const validation = validatePassword(password);
   if (!validation.valid) {
     return NextResponse.json({ ok: false, error: validation.errors.join(" ") }, { status: 400 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowDown, ArrowUp } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FlashcardDeckSummary } from "@/lib/flashcard-types";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +15,11 @@ export function FlashcardVoteButtons({ deck, onChange }: FlashcardVoteButtonsPro
   const [score, setScore] = useState(deck.score);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    setVote(deck.userVote);
+    setScore(deck.score);
+  }, [deck.id, deck.userVote, deck.score]);
 
   async function choose(next: -1 | 1) {
     if (busy) return;

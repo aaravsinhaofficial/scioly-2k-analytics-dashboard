@@ -55,7 +55,16 @@ async function loadParticipantCandidates(supabase: ReturnType<typeof getSupabase
 }
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as {
+  let payload: unknown;
+  try {
+    payload = await request.json();
+  } catch {
+    return NextResponse.json({ ok: false, error: "Send a valid JSON import request." }, { status: 400 });
+  }
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return NextResponse.json({ ok: false, error: "Send a valid import request." }, { status: 400 });
+  }
+  const body = payload as {
     rawInput?: string;
     commit?: boolean;
     mode?: TournamentSourceType;
@@ -66,8 +75,25 @@ export async function POST(request: Request) {
     participantSelections?: Record<string, ParticipantSelection>;
   };
 
-  if (!body.rawInput?.trim()) {
+  if (typeof body.rawInput !== "string" || !body.rawInput.trim()) {
     return NextResponse.json({ ok: false, error: "Tournament input is required." }, { status: 400 });
+  }
+  if (body.rawInput.length > 2_000_000 ||
+    (body.commit !== undefined && typeof body.commit !== "boolean") ||
+    (body.mode !== undefined && body.mode !== "manual" && body.mode !== "duosmium_csv") ||
+    [body.tournamentName, body.date].some((value) => value !== undefined && typeof value !== "string") ||
+    [body.medalCutoff, body.participationPoints].some((value) => value !== undefined && (!Number.isSafeInteger(value) || value < 0))
+  ) {
+    return NextResponse.json({ ok: false, error: "Use valid tournament fields and nonnegative whole numbers for points and medal cutoff." }, { status: 400 });
+  }
+  if (body.participantSelections !== undefined && (
+    !body.participantSelections || typeof body.participantSelections !== "object" || Array.isArray(body.participantSelections) ||
+    Object.values(body.participantSelections).some((selection) =>
+      !selection || typeof selection !== "object" || typeof selection.confirmed !== "boolean" ||
+      !Array.isArray(selection.studentIds) || selection.studentIds.some((id) => typeof id !== "string")
+    )
+  )) {
+    return NextResponse.json({ ok: false, error: "Participant selections are invalid." }, { status: 400 });
   }
 
   const authenticatedUser = await getAuthenticatedStudent();
@@ -82,8 +108,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Manual tournament dumps are admin-only." }, { status: 403 });
   }
 
-  if (body.commit && !roleMeets(currentUser.role, "officer")) {
-    return NextResponse.json({ ok: false, error: "Tournament commits require officer access." }, { status: 403 });
+  if (!roleMeets(currentUser.role, "officer")) {
+    return NextResponse.json({ ok: false, error: "Tournament imports require officer access." }, { status: 403 });
   }
 
   const parsedPreview = await parseTournamentInput(body.rawInput, {
@@ -94,6 +120,9 @@ export async function POST(request: Request) {
     participationPoints: body.participationPoints
   });
   const supabase = getSupabaseAdmin();
+  if (!supabase && !isDemoMode()) {
+    return NextResponse.json({ ok: false, error: "Tournament storage is unavailable. Please try again after the backend is configured." }, { status: 503 });
+  }
   let candidates: TournamentParticipantCandidate[];
   try {
     candidates = await loadParticipantCandidates(supabase);
@@ -104,7 +133,8 @@ export async function POST(request: Request) {
     preview: parsedPreview,
     candidates,
     selections: body.participantSelections,
-    isLocalSchool: schoolMatchesTracker
+    isLocalSchool: schoolMatchesTracker,
+    localSchoolName: schoolName
   });
 
   if (!body.commit) {

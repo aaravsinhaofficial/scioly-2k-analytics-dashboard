@@ -716,11 +716,11 @@ set search_path = public
 as $$
 begin
   if new.student_id is distinct from old.student_id
-     and case
+     and (case
        when jsonb_typeof(old.metadata->'evidence') = 'array'
          then jsonb_array_length(old.metadata->'evidence') > 0
        else false
-     end then
+     end) then
     raise exception 'POINT_EVIDENCE_OWNER_IMMUTABLE';
   end if;
   return new;

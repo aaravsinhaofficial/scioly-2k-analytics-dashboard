@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { safeInternalPath } from "@/lib/app-url";
 import { getAuthenticatedStudent, recordLegalAcceptance } from "@/lib/auth";
 import { LEGAL_VERSION } from "@/lib/legal";
+import { readJsonObject } from "@/lib/json-request";
 import { getSupabaseServerClient, hasSupabaseConfig } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -14,16 +15,13 @@ export async function POST(request: Request) {
     );
   }
 
-  const body = (await request.json()) as {
-    email?: string;
-    password?: string;
-    next?: string;
-    acceptedPolicies?: boolean;
-    legalVersion?: string;
-  };
-  const email = body.email?.trim().toLowerCase();
+  const body = await readJsonObject(request);
+  if (!body || (body.next !== undefined && typeof body.next !== "string")) {
+    return NextResponse.json({ ok: false, error: "Send a valid sign-in request." }, { status: 400 });
+  }
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
 
-  if (!email || !body.password) {
+  if (!email || typeof body.password !== "string" || !body.password) {
     return NextResponse.json({ ok: false, error: "Email and password are required." }, { status: 400 });
   }
   if (body.acceptedPolicies !== true || body.legalVersion !== LEGAL_VERSION) {

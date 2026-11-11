@@ -21,7 +21,7 @@ async function currentStudent() {
 }
 
 function validateValues(body: { name?: string; defaultPoints?: number; maxPoints?: number }) {
-  const name = body.name?.trim();
+  const name = typeof body.name === "string" ? body.name.trim() : "";
   const defaultPoints = Number(body.defaultPoints);
   const maxPoints = Number(body.maxPoints);
   if (!name) return { error: "Category name is required." };
@@ -71,8 +71,11 @@ export async function POST(request: Request) {
   const currentUser = await currentStudent();
   if (!currentUser) return NextResponse.json({ ok: false, error: "Sign in before creating categories." }, { status: 401 });
   if (currentUser.role !== "admin") return NextResponse.json({ ok: false, error: "Only admins can create point categories." }, { status: 403 });
-  if (!body) return NextResponse.json({ ok: false, error: "Category details are required." }, { status: 400 });
+  if (!body || typeof body !== "object" || Array.isArray(body)) return NextResponse.json({ ok: false, error: "Category details are required." }, { status: 400 });
 
+  if ("isActive" in body && body.isActive !== undefined && typeof body.isActive !== "boolean") {
+    return NextResponse.json({ ok: false, error: "Category status must be true or false." }, { status: 400 });
+  }
   const values = validateValues(body);
   if ("error" in values) return NextResponse.json({ ok: false, error: values.error }, { status: 400 });
   const { name, defaultPoints, maxPoints } = values;
@@ -127,6 +130,9 @@ export async function PATCH(request: Request) {
   if (currentUser.role !== "admin") return NextResponse.json({ ok: false, error: "Only admins can edit point categories." }, { status: 403 });
   if (!Number.isInteger(body?.id) || Number(body?.id) <= 0 || !body) return NextResponse.json({ ok: false, error: "A valid category is required." }, { status: 400 });
 
+  if ("isActive" in body && body.isActive !== undefined && typeof body.isActive !== "boolean") {
+    return NextResponse.json({ ok: false, error: "Category status must be true or false." }, { status: 400 });
+  }
   const values = validateValues(body);
   if ("error" in values) return NextResponse.json({ ok: false, error: values.error }, { status: 400 });
   const { name, defaultPoints, maxPoints } = values;

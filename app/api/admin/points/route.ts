@@ -141,11 +141,11 @@ export async function POST(request: Request) {
     reason?: string;
   } | null;
 
-  const studentId = body?.studentId?.trim();
+  const studentId = typeof body?.studentId === "string" ? body.studentId.trim() : "";
   const points = Number(body?.points);
   const minutes = Number(body?.minutes ?? 0);
-  const label = body?.label?.trim();
-  const reason = body?.reason?.trim();
+  const label = typeof body?.label === "string" ? body.label.trim() : "";
+  const reason = typeof body?.reason === "string" ? body.reason.trim() : "";
   if (!studentId || !label || !reason) {
     return NextResponse.json({ ok: false, error: "Student, activity label, and reason are required." }, { status: 400 });
   }
@@ -432,6 +432,14 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: false, error: "Decision must be approved or rejected." }, { status: 400 });
   }
 
+  if (body.notes !== undefined && (typeof body.notes !== "string" || body.notes.length > 500)) {
+    return NextResponse.json({ ok: false, error: "Review notes must be text of 500 characters or fewer." }, { status: 400 });
+  }
+  const notes = body.notes?.trim() || null;
+  if (body.decision === "rejected" && !notes) {
+    return NextResponse.json({ ok: false, error: "Give a reason for rejecting this point log." }, { status: 400 });
+  }
+
   const supabase = getSupabaseAdmin();
   const currentUser = (await getAuthenticatedStudent()) ?? (isDemoMode() ? getCurrentDemoUser() : null);
 
@@ -458,34 +466,38 @@ export async function PATCH(request: Request) {
     if (before.status !== "pending") {
       return NextResponse.json({ ok: false, error: "This point log has already been reviewed." }, { status: 409 });
     }
-    const { error } = await supabase
+    const { data: reviewed, error } = await supabase
       .from("grind_points")
       .update({
         is_approved: body.decision === "approved",
         status: body.decision,
         approved_at: new Date().toISOString(),
         approved_by: currentUser.id,
-        notes: body.notes ?? null
+        notes
       })
-      .eq("id", pointId);
+      .eq("id", pointId)
+      .eq("status", "pending")
+      .select("*")
+      .maybeSingle();
 
     if (error) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
+
+    if (!reviewed) {
+      return NextResponse.json({ ok: false, error: "This point log was already reviewed or removed. Refresh the queue." }, { status: 409 });
     }
 
     const { error: auditError } = await supabase.from("audit_logs").insert({
       actor_id: currentUser.id,
       action: body.decision === "approved" ? "points.approve" : "points.reject",
       target: `Point log #${pointId}`,
-      reason: body.notes ?? null,
+      reason: notes,
       ip_address: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
       entity_table: "grind_points",
       entity_id: String(pointId),
       payload_before: before,
-      payload_after: {
-        status: body.decision,
-        notes: body.notes ?? null
-      },
+      payload_after: reviewed,
       undo_action: body.decision === "approved" ? "points.unapprove" : "points.restore_pending",
       is_reversible: true
     });
@@ -499,7 +511,10 @@ export async function PATCH(request: Request) {
           approved_by: before.approved_by,
           notes: before.notes
         })
-        .eq("id", pointId);
+        .eq("id", pointId)
+        .eq("approved_at", reviewed.approved_at)
+        .eq("approved_by", currentUser.id)
+        .eq("status", body.decision);
       return NextResponse.json(
         { ok: false, error: "The review was rolled back because its undo record could not be saved." },
         { status: 500 }

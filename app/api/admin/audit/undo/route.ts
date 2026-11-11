@@ -249,7 +249,7 @@ function guardedFunctionMissing(error: { code?: string; message?: string } | nul
 }
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as { auditId?: number; reason?: string };
+  const body = (await request.json().catch(() => null)) as { auditId?: number; reason?: string } | null;
   const currentUser = (await getAuthenticatedStudent()) ?? (isDemoMode() ? getCurrentDemoUser() : null);
 
   if (!currentUser) {
@@ -260,8 +260,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Only admins can undo audit actions." }, { status: 403 });
   }
 
-  if (!body.auditId) {
+  if (!body || !Number.isSafeInteger(body.auditId) || Number(body.auditId) <= 0) {
     return NextResponse.json({ ok: false, error: "Audit log ID is required." }, { status: 400 });
+  }
+
+  if (body.reason !== undefined && (typeof body.reason !== "string" || body.reason.length > 500)) {
+    return NextResponse.json({ ok: false, error: "The undo reason must be text of 500 characters or fewer." }, { status: 400 });
   }
 
   const supabase = getSupabaseAdmin();
@@ -354,18 +358,47 @@ export async function POST(request: Request) {
     const { id: _id, ...snapshot } = restoredPoint;
     const { error } = await supabase.from("grind_points").update(snapshot).eq("id", restoredPoint.id);
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-  } else if ((undoAction === "points.unapprove" || undoAction === "points.restore_pending") && entityId && before) {
-    const { error } = await supabase
+  } else if ((undoAction === "points.unapprove" || undoAction === "points.restore_pending") && entityTable === "grind_points" && entityId && before && after) {
+    const restoredPoint = restorablePoint(before, entityId);
+    if (!restoredPoint) return NextResponse.json({ ok: false, error: "The review snapshot is incomplete or invalid." }, { status: 409 });
+    const [pointResult, newerResult] = await Promise.all([
+      supabase.from("grind_points").select("*").eq("id", restoredPoint.id).maybeSingle(),
+      supabase.from("audit_logs").select("id").eq("entity_table", "grind_points")
+        .eq("entity_id", entityId).gt("id", audit.id).eq("is_reversible", true).is("reversed_at", null).limit(1)
+    ]);
+    if (pointResult.error || newerResult.error) {
+      return NextResponse.json({ ok: false, error: pointResult.error?.message ?? newerResult.error?.message }, { status: 500 });
+    }
+    const current = pointResult.data;
+    const currentPoint = current ? restorablePoint(current as Record<string, unknown>, entityId) : null;
+    // Old review audits stored only status and notes; newer audits retain the complete row.
+    const expectedPoint = after.id ? restorablePoint(after, entityId) : null;
+    if (!currentPoint || (newerResult.data ?? []).length > 0 ||
+        (expectedPoint ? !samePointSnapshot(currentPoint, expectedPoint) :
+          currentPoint.status !== after.status || currentPoint.notes !== (after.notes ?? null))) {
+      return NextResponse.json({ ok: false, error: "This point entry changed after this review. Undo its newer edit or review first." }, { status: 409 });
+    }
+    let restoreReview = supabase
       .from("grind_points")
       .update({
-        status: before.status ?? "pending",
-        is_approved: before.is_approved ?? false,
-        approved_at: before.approved_at ?? null,
-        approved_by: before.approved_by ?? null,
-        notes: before.notes ?? null
+        status: restoredPoint.status,
+        is_approved: restoredPoint.is_approved,
+        approved_at: restoredPoint.approved_at,
+        approved_by: restoredPoint.approved_by,
+        notes: restoredPoint.notes
       })
-      .eq("id", Number(entityId));
+      .eq("id", restoredPoint.id)
+      .eq("status", currentPoint.status)
+      .eq("is_approved", currentPoint.is_approved)
+      .eq("approved_at", currentPoint.approved_at)
+      .eq("approved_by", currentPoint.approved_by);
+    restoreReview = currentPoint.notes === null
+      ? restoreReview.is("notes", null)
+      : restoreReview.eq("notes", currentPoint.notes);
+    const { data: restored, error } = await restoreReview.select("id").maybeSingle();
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    if (!restored) return NextResponse.json({ ok: false, error: "This point entry changed before the undo was applied. Reload and try again." }, { status: 409 });
+    previousPointForUndo = currentPoint;
   } else if (undoAction === "student.archive" && entityTable === "students" && entityId) {
     const [studentResult, membershipResult] = await Promise.all([
       supabase.from("students").select("*").eq("id", entityId).maybeSingle(),

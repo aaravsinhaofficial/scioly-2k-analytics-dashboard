@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { readJsonObject } from "@/lib/json-request";
 import { getSupabaseServerClient, hasSupabaseConfig } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -11,8 +12,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const body = (await request.json()) as { email?: string };
-  const email = body.email?.trim().toLowerCase();
+  const body = await readJsonObject(request);
+  const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
   if (!email) {
     return NextResponse.json({ ok: false, error: "Email is required." }, { status: 400 });
   }

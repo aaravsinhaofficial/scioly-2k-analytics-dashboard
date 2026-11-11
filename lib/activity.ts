@@ -62,3 +62,17 @@ export function calculateActivityPoints(input: {
       return 0;
   }
 }
+
+export function activityInputError(input: { minutes?: unknown; quantity?: unknown; customPoints?: unknown }) {
+  const fields = [
+    ["Minutes", input.minutes, activityLimits.maxStudyMinutes],
+    ["Quantity", input.quantity, activityLimits.maxSpecimenCount],
+    ["Custom points", input.customPoints, activityLimits.maxCustomActivityPoints]
+  ] as const;
+  for (const [label, value, maximum] of fields) {
+    if (value !== undefined && (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > maximum)) {
+      return `${label} must be a whole number from 0 to ${maximum}.`;
+    }
+  }
+  return null;
+}

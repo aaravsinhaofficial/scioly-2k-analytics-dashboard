@@ -7,7 +7,7 @@
     },
     {
       "path": "/api/cron/evidence-cleanup",
-      "schedule": "17 * * * *"
+      "schedule": "17 11 * * *"
     }
   ]
 }

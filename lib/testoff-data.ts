@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getSupabaseAdmin, hasSupabaseConfig } from "@/lib/supabase";
+import { loadAllPages } from "@/lib/paginated-query";
 import type {
   EventCategory,
   EventDefinition,
@@ -93,21 +94,31 @@ function adminClient() {
   return client;
 }
 
+function loadRows(
+  supabase: ReturnType<typeof adminClient>,
+  table: string,
+  columns: string,
+  orderBy = "id",
+  ascending = true
+) {
+  return loadAllPages((from, to) => {
+    let query = supabase.from(table).select(columns).order(orderBy, { ascending });
+    // Stable tie ordering prevents records being skipped between pages.
+    if (orderBy !== "id") query = query.order("id", { ascending: true });
+    return query.range(from, to).returns<DbRow[]>();
+  });
+}
+
 export async function loadTestoffDashboardData(): Promise<TestoffDashboardData> {
   if (!hasSupabaseConfig()) return emptyDashboard();
 
   const supabase = adminClient();
   const [seasonResult, eventResult, sessionResult, resultResult, studentResult] = await Promise.all([
-    supabase.from("seasons").select("id,name,start_date,end_date,is_active").order("start_date", { ascending: false }),
-    supabase.from("events").select("id,name,category").order("name"),
-    supabase
-      .from("testoff_sessions")
-      .select("id,season_id,event_id,name,date,max_score,weight,notes")
-      .order("date", { ascending: false }),
-    supabase
-      .from("testoff_results")
-      .select("id,session_id,student_id,raw_score,rank,ranking_score,notes"),
-    supabase.from("students").select("id,name")
+    loadRows(supabase, "seasons", "id,name,start_date,end_date,is_active", "start_date", false),
+    loadRows(supabase, "events", "id,name,category", "name"),
+    loadRows(supabase, "testoff_sessions", "id,season_id,event_id,name,date,max_score,weight,notes", "date", false),
+    loadRows(supabase, "testoff_results", "id,session_id,student_id,raw_score,rank,ranking_score,notes"),
+    loadRows(supabase, "students", "id,name")
   ]);
 
   const namedResults = [
@@ -281,9 +292,9 @@ export async function loadTestoffAdminData(): Promise<TestoffAdminData> {
 
   const supabase = adminClient();
   const [seasonResult, eventResult, studentResult] = await Promise.all([
-    supabase.from("seasons").select("id,name,start_date,end_date,is_active").order("start_date", { ascending: false }),
-    supabase.from("events").select("id,name,category").order("name"),
-    supabase.from("students").select("*").order("name")
+    loadRows(supabase, "seasons", "id,name,start_date,end_date,is_active", "start_date", false),
+    loadRows(supabase, "events", "id,name,category", "name"),
+    loadRows(supabase, "students", "*", "name")
   ]);
 
   if (seasonResult.error) throw new Error(`Could not load seasons: ${seasonResult.error.message}`);

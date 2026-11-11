@@ -108,6 +108,20 @@ export function InteractivePracticeTest({ test }: { test: TestOverview }) {
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
   }, [attempt?.answers, attempt?.id, attempt?.status, queueSave]);
 
+  useEffect(() => {
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      const current = attemptRef.current;
+      if (current?.status === "in_progress" && (
+        pendingSaveCount.current > 0 || JSON.stringify(current.answers) !== lastSavedAnswersRef.current
+      )) {
+        event.preventDefault();
+        event.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, []);
+
   async function start() {
     setWorking(true);
     setError(null);
@@ -166,7 +180,9 @@ export function InteractivePracticeTest({ test }: { test: TestOverview }) {
   }
 
   async function review(questionId: number, value: FrqSelfReview) {
-    if (!attempt) return;
+    if (!attempt || saving) return;
+    const previous = attempt;
+    setError(null);
     const reviews = { ...attempt.frqReviews, [String(questionId)]: value };
     setAttempt({ ...attempt, frqReviews: reviews });
     setSaving(true);
@@ -179,6 +195,8 @@ export function InteractivePracticeTest({ test }: { test: TestOverview }) {
       versionRef.current = payload.attempt.version;
       setHistory((current) => current.map((entry) => entry.id === payload.attempt?.id ? payload.attempt! : entry));
     } catch (caught) {
+      attemptRef.current = previous;
+      setAttempt(previous);
       setError(caught instanceof Error ? caught.message : "Could not save self-review.");
     } finally {
       setSaving(false);

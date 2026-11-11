@@ -126,6 +126,7 @@ export function RosterManager({ rosters }: RosterManagerProps) {
   }
 
   function moveMember(memberId: string, targetGroupId: string) {
+    if (saving || teamSaving || removing) return;
     const sourceGroup = findGroupByMember(memberId);
     const targetGroup = groups.find((group) => group.id === targetGroupId);
     if (!sourceGroup || !targetGroup || sourceGroup.id === targetGroup.id) return;

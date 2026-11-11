@@ -4,6 +4,7 @@ import { ReportActions } from "@/components/admin/ReportActions";
 import styles from "@/components/admin/ReportCenter.module.css";
 import { adminReportTypes, type AdminReportCell, type AdminReportData } from "@/lib/admin-reports";
 import { cn } from "@/lib/utils";
+import { formatReportGeneratedAt } from "@/lib/report-time";
 
 function apiCsvHref(report: AdminReportData) {
   const params = new URLSearchParams({ type: report.filters.type, format: "csv" });
@@ -31,13 +32,6 @@ function CellValue({ cell }: { cell: AdminReportCell | undefined }) {
       {cell.value}
     </Link>
   ) : <span className={className}>{cell.value}</span>;
-}
-
-function formatGeneratedAt(value: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short"
-  }).format(new Date(value));
 }
 
 export function ReportCenter({ report }: { report: AdminReportData }) {
@@ -113,7 +107,7 @@ export function ReportCenter({ report }: { report: AdminReportData }) {
           <h2 id="generated-report-heading" className="mt-1 text-2xl font-semibold tracking-tight text-white">{report.title}</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">{report.description}</p>
           <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-zinc-500">
-            <span>Generated {formatGeneratedAt(report.generatedAt)}</span>
+            <span>Generated {formatReportGeneratedAt(report.generatedAt)}</span>
             <span>{report.filterDescription}</span>
           </div>
         </header>

@@ -109,11 +109,11 @@ export function createAnalytics(dataset: AnalyticsDataset) {
   }
 
   function thirtyDayPoints(logs: GrindPointLog[]) {
-    const start = new Date(dataset.now ?? new Date());
-    start.setDate(start.getDate() - 30);
+    const now = new Date(dataset.now ?? new Date());
+    const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     return logs
-      .filter((log) => new Date(log.submittedAt) >= start && log.status === "approved")
+      .filter((log) => new Date(log.submittedAt) >= start && new Date(log.submittedAt) <= now && log.status === "approved")
       .reduce((total, log) => total + log.points, 0);
   }
 
@@ -313,7 +313,16 @@ export function createAnalytics(dataset: AnalyticsDataset) {
       .map((rows) => {
         const participantNames = Array.from(rows[0].participantNames)
           .sort((a, b) => normalizeName(a).localeCompare(normalizeName(b)));
-        const participantIds = Array.from(new Set(rows.flatMap((row) => Array.from(row.participantIds))));
+        const creditedIds = Array.from(new Set(rows.flatMap((row) => Array.from(row.participantIds))));
+        // IDs arrive in import order, while names are alphabetized. Match them by
+        // identity so an uncredited or ambiguous name never links to someone else.
+        const participantIds = participantNames.map((name) => {
+          const matches = creditedIds.filter((id) => {
+            const student = studentById.get(id);
+            return student && !student.isArchived && normalizeName(student.name) === normalizeName(name);
+          });
+          return matches.length === 1 ? matches[0] : undefined;
+        });
         const eventNames = Array.from(new Set(rows.flatMap((row) => {
           const event = eventById.get(row.eventId);
           return event ? [event.name] : [];
@@ -462,10 +471,12 @@ export function createAnalytics(dataset: AnalyticsDataset) {
         .filter((member): member is PlayerDetail => Boolean(member));
 
       const memberPerformances = members.flatMap((member) => performancesByStudent.get(member.id) ?? []);
-      const latestPerformance = [...memberPerformances].sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      )[0];
-      const latestTournament = latestPerformance ? tournamentById.get(latestPerformance.tournamentId) : undefined;
+      const latestTournament = memberPerformances
+        .flatMap((performance) => {
+          const tournament = tournamentById.get(performance.tournamentId);
+          return tournament ? [tournament] : [];
+        })
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
 
       return {
         id: team.id,

@@ -11,6 +11,7 @@ export function resolveTournamentParticipants(input: {
   candidates: TournamentParticipantCandidate[];
   selections?: Record<string, ParticipantSelection>;
   isLocalSchool: (schoolName: string) => boolean;
+  localSchoolName: string;
 }) {
   const blockers: string[] = [...input.preview.missingFields];
   const candidateById = new Map(input.candidates.map((candidate) => [candidate.id, candidate]));
@@ -72,6 +73,7 @@ export function resolveTournamentParticipants(input: {
       }
       return {
         ...performance,
+        schoolName: performance.schoolName || input.localSchoolName,
         studentNames: selected.map((candidate) => candidate.name),
         studentName: selected.map((candidate) => candidate.name).join(", "),
         participantResolution: {
@@ -84,6 +86,8 @@ export function resolveTournamentParticipants(input: {
         }
       };
     }
+
+    if (!performance.schoolName) blockers.push(`${performance.eventName}: confirm that this is a ${input.localSchoolName} result.`);
 
     if (performance.studentNames.length > 0) {
       const selected: TournamentParticipantCandidate[] = [];
@@ -98,7 +102,7 @@ export function resolveTournamentParticipants(input: {
           ...performance,
           studentNames: selected.map((candidate) => candidate.name),
           participantResolution: {
-            status: "matched" as const,
+            status: performance.schoolName ? "matched" as const : "needs_confirmation" as const,
             method: "provided_exact" as const,
             selected,
             candidates: eventCandidates,
@@ -127,7 +131,7 @@ export function resolveTournamentParticipants(input: {
         studentNames: eventCandidates.map((candidate) => candidate.name),
         studentName: eventCandidates.map((candidate) => candidate.name).join(", "),
         participantResolution: {
-          status: "matched" as const,
+          status: performance.schoolName ? "matched" as const : "needs_confirmation" as const,
           method: "roster_event_suggestion" as const,
           selected: eventCandidates,
           candidates: eventCandidates,

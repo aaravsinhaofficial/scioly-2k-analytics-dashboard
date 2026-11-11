@@ -194,7 +194,7 @@ export async function POST(request: Request) {
   }
 
   if (body?.action === "restore") {
-    const id = body.id?.trim();
+    const id = (typeof body.id === "string" ? body.id.trim() : "");
     if (!id) return NextResponse.json({ ok: false, error: "Choose a person to restore." }, { status: 400 });
 
     const { data: before, error: loadError } = await supabase.from("students").select("*").eq("id", id).maybeSingle();
@@ -289,11 +289,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, student: personResponse(restored as DbRow), message: `${String(restored.name)} restored${restoredMemberships.length ? " with their previous team assignment" : ""}.` });
   }
 
-  const name = body?.name?.trim().replace(/\s+/g, " ") ?? "";
-  const email = body?.email?.trim().toLowerCase() ?? "";
+  const name = typeof body?.name === "string" ? body.name.trim().replace(/\s+/g, " ") : "";
+  const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
   const grade = Number(body?.grade);
   const profileEvents = normalizeEvents(body?.profileEvents);
-  const teamId = body?.teamId?.trim() ?? "";
+  const teamId = typeof body?.teamId === "string" ? body.teamId.trim() : "";
   if (name.length < 2 || name.length > 100) return NextResponse.json({ ok: false, error: "Name must be between 2 and 100 characters." }, { status: 400 });
   if (!emailPattern.test(email) || email.length > 254) return NextResponse.json({ ok: false, error: "Enter a valid email address." }, { status: 400 });
   if (!Number.isInteger(grade) || grade < 9 || grade > 12) return NextResponse.json({ ok: false, error: "Grade must be 9, 10, 11, or 12." }, { status: 400 });
@@ -363,9 +363,9 @@ export async function PATCH(request: Request) {
   } | null;
   const auth = await requireAdmin("Sign in before editing people.");
   if ("response" in auth) return auth.response;
-  const id = body?.id?.trim();
-  const name = body?.name?.trim().replace(/\s+/g, " ") ?? "";
-  const email = body?.email?.trim().toLowerCase() ?? "";
+  const id = (typeof body?.id === "string" ? body.id.trim() : "");
+  const name = typeof body?.name === "string" ? body.name.trim().replace(/\s+/g, " ") : "";
+  const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
   const grade = Number(body?.grade);
   const role = body?.role;
   const profileEvents = normalizeEvents(body?.profileEvents);
@@ -445,7 +445,7 @@ export async function DELETE(request: Request) {
   const body = (await request.json().catch(() => null)) as { id?: string } | null;
   const auth = await requireAdmin("Sign in before removing people.");
   if ("response" in auth) return auth.response;
-  const id = body?.id?.trim();
+  const id = (typeof body?.id === "string" ? body.id.trim() : "");
   if (!id) return NextResponse.json({ ok: false, error: "Choose a person to remove." }, { status: 400 });
   if (id === auth.currentUser.id) return NextResponse.json({ ok: false, error: "You cannot archive your own account." }, { status: 409 });
 

@@ -246,7 +246,8 @@ export interface TournamentEventSummary {
 
 export interface TournamentPartnershipSummary {
   participantNames: string[];
-  participantIds: string[];
+  /** Aligned with participantNames; unresolved or ambiguous people are not linked. */
+  participantIds: Array<string | undefined>;
   eventNames: string[];
   resultCount: number;
   tournamentCount: number;
