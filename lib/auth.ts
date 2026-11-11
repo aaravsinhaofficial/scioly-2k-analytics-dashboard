@@ -99,9 +99,12 @@ export function baselineStudent(input: {
   };
 }
 
-async function fetchStudentByAuthUser(authUserId: string, email: string) {
+async function fetchStudentByAuthUser(authUserId: string, email: string): Promise<{
+  row: StudentRow | null;
+  failed: boolean;
+}> {
   const supabase = getSupabaseAdmin() ?? await getSupabaseServerClient();
-  if (!supabase) return null;
+  if (!supabase) return { row: null, failed: true };
 
   const byAuthUser = await supabase
     .from("students")
@@ -109,27 +112,34 @@ async function fetchStudentByAuthUser(authUserId: string, email: string) {
     .eq("auth_user_id", authUserId)
     .maybeSingle();
 
-  if (byAuthUser.data) {
-    return byAuthUser.data as StudentRow;
-  }
+  if (byAuthUser.error) return { row: null, failed: true };
+  if (byAuthUser.data) return { row: byAuthUser.data as StudentRow, failed: false };
 
   const byEmail = await supabase.from("students").select("*").eq("email", email.trim().toLowerCase()).maybeSingle();
-  if (byEmail.data) {
-    return byEmail.data as StudentRow;
-  }
+  if (byEmail.error) return { row: null, failed: true };
+  if (byEmail.data) return { row: byEmail.data as StudentRow, failed: false };
 
-  return null;
+  return { row: null, failed: false };
 }
 
-export async function ensureStudentProfile(input: {
+interface StudentProfileInput {
   authUserId: string;
   email: string;
   name?: string | null;
   grade?: number | null;
   legalAcceptedAt?: string;
   legalVersion?: string;
-}) {
-  const existingRow = await fetchStudentByAuthUser(input.authUserId, input.email);
+}
+
+export async function ensureStudentProfile(input: StudentProfileInput): Promise<Student | null> {
+  return ensureStudentProfileOnce(input, true);
+}
+
+async function ensureStudentProfileOnce(input: StudentProfileInput, allowCreate: boolean): Promise<Student | null> {
+  const lookup = await fetchStudentByAuthUser(input.authUserId, input.email);
+  // A failed read is not evidence that this user needs a new baseline profile.
+  if (lookup.failed) return null;
+  const existingRow = lookup.row;
   if (existingRow?.is_active === false) {
     // Archiving is an administrative access decision. A later sign-in or
     // signup may attach its auth ID, but must never silently reactivate it or
@@ -185,6 +195,7 @@ export async function ensureStudentProfile(input: {
     return existing;
   }
 
+  if (!allowCreate) return null;
   const admin = getSupabaseAdmin();
   if (!admin) {
     // Without the service-role client we cannot distinguish a missing profile
@@ -209,14 +220,17 @@ export async function ensureStudentProfile(input: {
         privacy_acknowledged_at: input.legalAcceptedAt ?? null,
         legal_version: input.legalVersion ?? null
       },
-      { onConflict: "email" }
+      { onConflict: "email", ignoreDuplicates: true }
     )
     .select("*")
-    .single();
+    .maybeSingle();
 
-  if (error || !data) {
-    return null;
+  if ((!error && !data) || error?.code === "23505") {
+    // Another request may have created the profile after our lookup. Read and
+    // link that row once instead of overwriting its role, history, or points.
+    return ensureStudentProfileOnce(input, false);
   }
+  if (error || !data) return null;
 
   const createdOrLinked = data as StudentRow;
   return createdOrLinked.is_active === false ? null : studentFromRow(createdOrLinked);

@@ -9,11 +9,12 @@ export async function POST() {
   }
 
   const supabase = await getSupabaseServerClient();
-  if (supabase) {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      return NextResponse.json({ ok: false, error: "Could not sign out. Please try again." }, { status: 503 });
-    }
+  if (!supabase) {
+    return NextResponse.json({ ok: false, error: "Could not sign out. Please try again." }, { status: 503 });
+  }
+  const { error } = await supabase.auth.signOut();
+  if (error) {
+    return NextResponse.json({ ok: false, error: "Could not sign out. Please try again." }, { status: 503 });
   }
 
   return NextResponse.json({ ok: true, message: "Signed out.", redirectTo: "/login" });

@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { getAppOrigin } from "@/lib/app-url";
 import { ensureStudentProfile, publicSignupEnabled } from "@/lib/auth";
 import { validatePassword } from "@/lib/password";
 import { getSupabaseServerClient, hasSupabaseConfig } from "@/lib/supabase";
@@ -62,7 +61,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Supabase is not configured." }, { status: 503 });
   }
 
-  const origin = getAppOrigin(request);
+  // The PKCE verifier belongs to the host that started signup, including previews.
+  const origin = new URL(request.url).origin;
   const { data, error } = await supabase.auth.signUp({
     email,
     password,

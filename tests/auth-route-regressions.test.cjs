@@ -82,6 +82,20 @@ test('OAuth and password recovery callbacks stay on the initiating host', async 
   assert.equal(calls[1][2].redirectTo, `${host}/auth/callback?next=%2Freset-password%3Fmode%3Dupdate`);
 });
 
+test('signup confirmation stays on the initiating host despite a production APP_URL', async () => {
+  const previous = process.env.APP_URL;
+  process.env.APP_URL = 'https://www.sciolytracker.com';
+  calls.length = 0;
+  try {
+    const host = 'https://preview.example.vercel.app';
+    assert.equal((await routes.signup(request(validSignup, host))).status, 200);
+    assert.equal(calls[0][1].options.emailRedirectTo, `${host}/auth/callback?next=/dashboard`);
+  } finally {
+    if (previous === undefined) delete process.env.APP_URL;
+    else process.env.APP_URL = previous;
+  }
+});
+
 test('provider sign-out errors reach the client instead of reporting success', async () => {
   signOutError = { message: 'Provider unavailable' };
   try {
@@ -89,4 +103,15 @@ test('provider sign-out errors reach the client instead of reporting success', a
     assert.equal(response.status, 503);
     assert.equal((await response.json()).ok, false);
   } finally { signOutError = null; }
+});
+
+test('missing auth client cannot report a successful sign-out', async () => {
+  clientAvailable = false;
+  calls.length = 0;
+  try {
+    const response = await routes.logout();
+    assert.equal(response.status, 503);
+    assert.equal((await response.json()).ok, false);
+    assert.deepEqual(calls, []);
+  } finally { clientAvailable = true; }
 });

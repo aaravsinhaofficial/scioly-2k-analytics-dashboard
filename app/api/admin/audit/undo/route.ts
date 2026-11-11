@@ -378,7 +378,7 @@ export async function POST(request: Request) {
           currentPoint.status !== after.status || currentPoint.notes !== (after.notes ?? null))) {
       return NextResponse.json({ ok: false, error: "This point entry changed after this review. Undo its newer edit or review first." }, { status: 409 });
     }
-    const { data: restored, error } = await supabase
+    let restoreReview = supabase
       .from("grind_points")
       .update({
         status: restoredPoint.status,
@@ -389,10 +389,13 @@ export async function POST(request: Request) {
       })
       .eq("id", restoredPoint.id)
       .eq("status", currentPoint.status)
+      .eq("is_approved", currentPoint.is_approved)
       .eq("approved_at", currentPoint.approved_at)
-      .eq("approved_by", currentPoint.approved_by)
-      .select("id")
-      .maybeSingle();
+      .eq("approved_by", currentPoint.approved_by);
+    restoreReview = currentPoint.notes === null
+      ? restoreReview.is("notes", null)
+      : restoreReview.eq("notes", currentPoint.notes);
+    const { data: restored, error } = await restoreReview.select("id").maybeSingle();
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     if (!restored) return NextResponse.json({ ok: false, error: "This point entry changed before the undo was applied. Reload and try again." }, { status: 409 });
     previousPointForUndo = currentPoint;

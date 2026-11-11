@@ -32,6 +32,7 @@ function route(file, database, options = {}) {
       then(resolve, reject) {
         calls.push({ table, action, values });
         if (action === 'insert') { database[table].push(values); return Promise.resolve({ data: values, error: null }).then(resolve, reject); }
+        if (action === 'update' && table === 'grind_points') options.beforePointUpdate?.(database);
         let rows = database[table].filter(row => predicates.every(predicate => predicate(row)));
         if (action === 'read' && table === 'grind_points' && options.staleRead && reads++ === 0) rows = [{ ...pending }];
         if (action === 'update') rows.forEach(row => Object.assign(row, values));
@@ -148,5 +149,22 @@ test('admin text validation rejects non-string names without crashing', async ()
     const response = await handler.POST(request(body));
     assert.equal(response.status, 400);
     assert.equal(handler.calls.length, 0);
+  }
+});
+
+
+test('undo preserves notes changed after its snapshot read, including previously null notes', async () => {
+  for (const originalNotes of [null, 'Original review']) {
+    const original = { ...approved, notes: originalNotes };
+    const db = { grind_points: [{ ...original }], audit_logs: [{ ...reviewAudit(), payload_after: { ...original } }] };
+    const handler = route('app/api/admin/audit/undo/route.ts', db, {
+      beforePointUpdate(database) { database.grind_points[0].notes = 'Concurrent correction'; }
+    });
+    const response = await handler.POST(request({ auditId: 20 }));
+    assert.equal(response.status, 409);
+    assert.equal(db.grind_points[0].notes, 'Concurrent correction');
+    assert.equal(db.grind_points[0].status, 'approved');
+    assert.equal(db.audit_logs[0].reversed_at, null);
+    assert.equal(db.audit_logs.length, 1);
   }
 });
