@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Link2, Loader2, Paperclip, PlusCircle, X } from "lucide-react";
-import { activityHelp, activityLabels, calculateActivityPoints } from "@/lib/activity";
+import { activityHelp, activityInputError, activityLabels, activityLimits, calculateActivityPoints } from "@/lib/activity";
 import {
   MAX_POINT_EVIDENCE_FILES,
   MAX_POINT_EVIDENCE_FILE_BYTES,
@@ -152,6 +152,14 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
   }
 
   function submit() {
+    const submittedMinutes = ["solo_study", "partner_study", "build_testing"].includes(activityType) ? minutes : 0;
+    const submittedQuantity = activityType === "id_specimens" ? quantity : undefined;
+    const submittedCustomPoints = ["build_testing", "custom_activity"].includes(activityType) ? customPoints : undefined;
+    const inputError = activityInputError({ minutes: submittedMinutes, quantity: submittedQuantity, customPoints: submittedCustomPoints });
+    if (inputError) {
+      setMessage(inputError);
+      return;
+    }
     setMessage(null);
     startTransition(async () => {
       let uploadTickets: EvidenceUploadTicket[] = [];
@@ -206,9 +214,9 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
           body: JSON.stringify({
             studentId: currentUser.id,
             activityType,
-            minutes,
-            quantity,
-            customPoints,
+            minutes: submittedMinutes,
+            quantity: submittedQuantity,
+            customPoints: submittedCustomPoints,
             customLabel: activityType === "custom_activity" ? customLabel : undefined,
             customCategoryId: activityType === "custom_activity" ? customCategoryId : undefined,
             activityDetails: activityType === "custom_activity" ? activityDetails.trim() : undefined,
@@ -279,6 +287,8 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
             <input
               type="number"
               min={0}
+              max={activityLimits.maxStudyMinutes}
+              step={1}
               value={minutes}
               onChange={(event) => setMinutes(Number(event.target.value))}
               className="h-11 rounded-md border border-court-line bg-court-panel px-3 text-sm text-white outline-none transition focus:border-cyan-400"
@@ -292,6 +302,8 @@ export function QuickPointLogForm({ currentUser }: QuickPointLogFormProps) {
             <input
               type="number"
               min={0}
+              max={activityLimits.maxSpecimenCount}
+              step={1}
               value={quantity}
               onChange={(event) => setQuantity(Number(event.target.value))}
               className="h-11 rounded-md border border-court-line bg-court-panel px-3 text-sm text-white outline-none transition focus:border-cyan-400"

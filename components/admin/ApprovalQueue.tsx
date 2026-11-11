@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Check, Loader2, X } from "lucide-react";
@@ -27,6 +27,11 @@ export function ApprovalQueue({ queue }: ApprovalQueueProps) {
   const [rejecting, setRejecting] = useState<ApprovalQueueItem | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    setItems(queue);
+    setRejecting((current) => current && queue.some((item) => item.id === current.id) ? current : null);
+  }, [queue]);
 
   function decide(id: number, decision: "approved" | "rejected", notes?: string) {
     setBusyId(id);
@@ -112,7 +117,7 @@ export function ApprovalQueue({ queue }: ApprovalQueueProps) {
                       <button
                         type="button"
                         onClick={() => decide(item.id, "approved")}
-                        disabled={isPending && busyId === item.id}
+                        disabled={isPending}
                         className="grid h-9 w-9 place-items-center rounded-md border border-emerald-400/40 bg-emerald-400/10 text-emerald-200 transition hover:bg-emerald-400 hover:text-black"
                         aria-label={`Approve ${item.student.name}'s log`}
                       >
@@ -121,7 +126,7 @@ export function ApprovalQueue({ queue }: ApprovalQueueProps) {
                       <button
                         type="button"
                         onClick={() => { setRejecting(item); setRejectionReason(""); }}
-                        disabled={isPending && busyId === item.id}
+                        disabled={isPending}
                         className="grid h-9 w-9 place-items-center rounded-md border border-red-400/40 bg-red-400/10 text-red-200 transition hover:bg-red-400 hover:text-black"
                         aria-label={`Reject ${item.student.name}'s log`}
                       >
@@ -149,7 +154,7 @@ export function ApprovalQueue({ queue }: ApprovalQueueProps) {
             <p className="mt-2 text-sm leading-6 text-zinc-500">Give a useful reason so the student knows what to correct. An admin can undo this decision later.</p>
             <label className="mt-4 grid gap-2 text-sm font-medium text-zinc-600">
               Reason
-              <textarea value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} rows={4} autoFocus className="rounded-md border border-court-line bg-court-panel p-3 text-white outline-none focus:border-cyan-400" />
+              <textarea value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} rows={4} maxLength={500} autoFocus className="rounded-md border border-court-line bg-court-panel p-3 text-white outline-none focus:border-cyan-400" />
             </label>
             <div className="mt-5 flex justify-end gap-2">
               <button type="button" onClick={() => setRejecting(null)} className="rounded-md border border-court-line px-4 text-sm font-medium text-zinc-600">Cancel</button>

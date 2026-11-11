@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { recordFlashcardChange } from "@/lib/flashcard-audit";
 import { getCurrentDemoUser } from "@/lib/analytics";
 import { getAuthenticatedStudent } from "@/lib/auth";
 import { loadFlashcardDecks } from "@/lib/flashcard-data";
@@ -24,7 +25,7 @@ interface DeckInput {
   cards?: unknown;
 }
 
-function cleanText(value: unknown, maxLength: number) {
+function cleanText(value: unknown, maxLength = Number.POSITIVE_INFINITY) {
   return typeof value === "string"
     ? value.normalize("NFKC").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "").trim().slice(0, maxLength)
     : "";
@@ -42,12 +43,15 @@ function validateInput(body: DeckInput) {
   const cards = body.cards.map((entry, position) => {
     const row = entry && typeof entry === "object" && !Array.isArray(entry) ? entry as CardInput : {};
     return {
-      front: cleanText(row.front, 1000),
-      back: cleanText(row.back, 5000),
+      front: cleanText(row.front),
+      back: cleanText(row.back),
       position,
     };
   });
   if (cards.some((card) => !card.front || !card.back)) return { error: "Every card needs a front and back." } as const;
+  if (cards.some((card) => card.front.length > 1000 || card.back.length > 5000)) {
+    return { error: "Each card can have at most 1,000 characters on the front and 5,000 on the back." } as const;
+  }
   const totalCharacters = cards.reduce((sum, card) => sum + card.front.length + card.back.length, 0);
   if (totalCharacters > MAX_TOTAL_CARD_CHARACTERS) return { error: "This deck contains too much text." } as const;
   const normalizedFronts = cards.map((card) => card.front.toLocaleLowerCase());
@@ -131,6 +135,7 @@ export async function POST(request: Request) {
     return NextResponse.json<FlashcardMutationResponse>({ ok: false, error: "Flashcard storage returned an invalid response." }, { status: 503 });
   }
   const deck = data as Record<string, unknown>;
+  await recordFlashcardChange({ action: "flashcard.publish", deckId: String(deck.id), actorId: currentUser.id });
 
   return NextResponse.json<FlashcardMutationResponse>({
     ok: true,

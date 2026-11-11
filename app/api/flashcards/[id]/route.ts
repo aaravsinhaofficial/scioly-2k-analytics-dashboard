@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { recordFlashcardChange } from "@/lib/flashcard-audit";
 import { getCurrentDemoUser } from "@/lib/analytics";
 import { getAuthenticatedStudent } from "@/lib/auth";
 import type { FlashcardMutationResponse } from "@/lib/flashcard-types";
@@ -26,5 +27,6 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   }
   const { error } = await supabase.from("flashcard_decks").delete().eq("id", id);
   if (error) return NextResponse.json<FlashcardMutationResponse>({ ok: false, error: "Could not remove this deck." }, { status: 500 });
+  await recordFlashcardChange({ action: "flashcard.remove", deckId: id, actorId: currentUser.id });
   return NextResponse.json<FlashcardMutationResponse>({ ok: true, message: "Deck removed." });
 }

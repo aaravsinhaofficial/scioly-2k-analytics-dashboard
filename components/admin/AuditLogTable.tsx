@@ -32,6 +32,7 @@ export function AuditLogTable({ logs, currentUser }: AuditLogTableProps) {
         });
         const payload = (await response.json().catch(() => null)) as { message?: string; error?: string } | null;
         if (!response.ok) throw new Error(payload?.error ?? "Undo failed.");
+        setRows((current) => current.map((row) => row.id === log.id ? { ...row, isReversed: true } : row));
         setMessage(payload?.message ?? "Audit action reversed.");
         router.refresh();
       } catch (caught) {
@@ -82,7 +83,7 @@ export function AuditLogTable({ logs, currentUser }: AuditLogTableProps) {
                     <button
                       type="button"
                       onClick={() => undo(log)}
-                      disabled={!canUndo || (isPending && undoingId === log.id)}
+                      disabled={!canUndo || isPending}
                       className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-court-line px-3 text-xs font-black uppercase text-zinc-600 transition hover:border-cyan-400 hover:text-white disabled:bg-court-elevated disabled:text-zinc-500 disabled:opacity-100"
                     >
                       {isPending && undoingId === log.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}

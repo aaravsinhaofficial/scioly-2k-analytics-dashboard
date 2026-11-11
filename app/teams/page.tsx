@@ -24,7 +24,7 @@ export default async function TeamsPage({
             </Link>
           ) : undefined}
         />
-        <TeamComparisonView teams={teams} initialTeamDesignation={team} />
+        <TeamComparisonView key={team ?? ""} teams={teams} initialTeamDesignation={team} />
       </div>
     </AppShell>
   );

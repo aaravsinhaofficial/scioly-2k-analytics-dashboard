@@ -20,6 +20,10 @@ npm ci
 npm run dev
 ```
 
+Run `npm test` for the regression suite and `npm run typecheck` for TypeScript validation (Node 22.18 or newer in the supported Node 22 line).
+
+For an existing pre-PR8 database, apply [`supabase/migrations/20261111_existing_features.sql`](supabase/migrations/20261111_existing_features.sql) before deploying evidence and flashcard support. This transaction adds only the required objects and legal-acceptance columns, without rewriting existing student, team, or results data. Use its verification queries to check the installation. The complete schema below is the fresh-install bootstrap.
+
 Development runs with demo data when Supabase variables are absent. Production fails closed unless Supabase is configured or `ENABLE_DEMO_MODE=true` is deliberately set.
 
 ## 1. Create the Supabase backend
@@ -83,7 +87,7 @@ Generate the cron secret locally with:
 openssl rand -hex 32
 ```
 
-The committed `vercel.json` schedules weekly OVR snapshots. Vercel automatically supplies `CRON_SECRET` to the scheduled request.
+The committed `vercel.json` schedules weekly OVR snapshots and daily cleanup of abandoned evidence uploads. Both schedules work on Vercel Hobby. Cleanup only removes unreferenced uploads older than six hours; because it runs daily, removal can take about 31 hours. Vercel automatically supplies `CRON_SECRET` to scheduled requests.
 
 ## 3. Connect sciolytracker.com from GoDaddy
 

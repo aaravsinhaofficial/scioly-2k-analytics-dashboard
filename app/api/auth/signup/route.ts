@@ -4,6 +4,7 @@ import { ensureStudentProfile, publicSignupEnabled } from "@/lib/auth";
 import { validatePassword } from "@/lib/password";
 import { getSupabaseServerClient, hasSupabaseConfig } from "@/lib/supabase";
 import { LEGAL_VERSION } from "@/lib/legal";
+import { readJsonObject } from "@/lib/json-request";
 
 export const dynamic = "force-dynamic";
 
@@ -22,18 +23,14 @@ export async function POST(request: Request) {
     );
   }
 
-  const body = (await request.json()) as {
-    name?: string;
-    grade?: number;
-    email?: string;
-    password?: string;
-    acceptedPolicies?: boolean;
-    legalVersion?: string;
-  };
-  const email = body.email?.trim().toLowerCase();
-  const name = body.name?.trim();
-  const grade = Number(body.grade);
-  const password = body.password ?? "";
+  const body = await readJsonObject(request);
+  if (!body) {
+    return NextResponse.json({ ok: false, error: "Send a valid account request." }, { status: 400 });
+  }
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const grade = typeof body.grade === "number" || typeof body.grade === "string" ? Number(body.grade) : NaN;
+  const password = typeof body.password === "string" ? body.password : "";
   const passwordValidation = validatePassword(password);
   const legalAcceptedAt = new Date().toISOString();
 

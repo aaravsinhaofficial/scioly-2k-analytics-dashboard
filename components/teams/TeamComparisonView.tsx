@@ -18,7 +18,8 @@ export function TeamComparisonView({ teams, initialTeamDesignation }: TeamCompar
   );
   const [selectedTeamId, setSelectedTeamId] = useState(initialTeam?.id ?? teams[0]?.id ?? "");
   const [compare, setCompare] = useState(false);
-  const visibleTeams = compare ? teams : teams.filter((team) => team.id === selectedTeamId);
+  const activeTeamId = teams.some((team) => team.id === selectedTeamId) ? selectedTeamId : teams[0]?.id;
+  const visibleTeams = compare ? teams : teams.filter((team) => team.id === activeTeamId);
 
   if (teams.length === 0) {
     return (
@@ -32,7 +33,7 @@ export function TeamComparisonView({ teams, initialTeamDesignation }: TeamCompar
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 rounded-md border border-court-line bg-court-panel p-2 shadow-sm" role="tablist" aria-label="Choose team view">
         {teams.map((team) => (
-          <button key={team.id} type="button" onClick={() => { setSelectedTeamId(team.id); setCompare(false); }} className={`rounded-md px-4 text-sm font-medium ${!compare && selectedTeamId === team.id ? "bg-white text-black" : "text-zinc-600 hover:bg-court-elevated"}`} role="tab" aria-selected={!compare && selectedTeamId === team.id}>{team.name || `Team ${team.designation}`}</button>
+          <button key={team.id} type="button" onClick={() => { setSelectedTeamId(team.id); setCompare(false); }} className={`rounded-md px-4 text-sm font-medium ${!compare && activeTeamId === team.id ? "bg-white text-black" : "text-zinc-600 hover:bg-court-elevated"}`} role="tab" aria-selected={!compare && activeTeamId === team.id}>{team.name || `Team ${team.designation}`}</button>
         ))}
         <button type="button" onClick={() => setCompare(true)} className={`rounded-md px-4 text-sm font-medium ${compare ? "bg-white text-black" : "text-zinc-600 hover:bg-court-elevated"}`} role="tab" aria-selected={compare}>Compare all</button>
       </div>

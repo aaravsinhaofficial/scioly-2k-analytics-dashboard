@@ -21,9 +21,9 @@ interface TeamInput {
 }
 
 function normalizeTeamFields(body: TeamInput | null) {
-  const name = body?.name?.trim().replace(/\s+/g, " ") ?? "";
-  const schoolName = body?.schoolName?.trim().replace(/\s+/g, " ") ?? "";
-  const designation = body?.designation?.trim().replace(/\s+/g, " ").toUpperCase() ?? "";
+  const name = typeof body?.name === "string" ? body.name.trim().replace(/\s+/g, " ") : "";
+  const schoolName = typeof body?.schoolName === "string" ? body.schoolName.trim().replace(/\s+/g, " ") : "";
+  const designation = typeof body?.designation === "string" ? body.designation.trim().replace(/\s+/g, " ").toUpperCase() : "";
 
   if (name.length < 2 || name.length > 80) return { error: "Team name must be between 2 and 80 characters." } as const;
   if (schoolName.length < 2 || schoolName.length > 120) return { error: "School name must be between 2 and 120 characters." } as const;
@@ -115,7 +115,7 @@ export async function PATCH(request: Request) {
   const currentUser = (await getAuthenticatedStudent()) ?? (isDemoMode() ? getCurrentDemoUser() : null);
   if (!currentUser) return NextResponse.json({ ok: false, error: "Sign in before editing a team." }, { status: 401 });
   if (currentUser.role !== "admin") return NextResponse.json({ ok: false, error: "Only admins can edit teams." }, { status: 403 });
-  const teamId = body?.teamId?.trim();
+  const teamId = (typeof body?.teamId === "string" ? body.teamId.trim() : "");
   if (!teamId || teamId === "unassigned") return NextResponse.json({ ok: false, error: "A valid team is required." }, { status: 400 });
   const fields = normalizeTeamFields(body);
   if ("error" in fields) return NextResponse.json({ ok: false, error: fields.error }, { status: 400 });
@@ -196,12 +196,19 @@ export async function PUT(request: Request) {
     return NextResponse.json({ ok: false, error: "At least one roster group is required." }, { status: 400 });
   }
 
+  if (body.groups.some((group) => !group || typeof group !== "object" || Array.isArray(group) ||
+      !Array.isArray(group.memberIds) || group.memberIds.some((id) => typeof id !== "string" || !id.trim()))) {
+    return NextResponse.json({ ok: false, error: "Every roster group needs a valid member list." }, { status: 400 });
+  }
   const groups = body.groups.map((group) => ({
     teamId: typeof group.teamId === "string" ? group.teamId : "",
     memberIds: Array.isArray(group.memberIds)
       ? group.memberIds.filter((id): id is string => typeof id === "string" && id.length > 0)
       : []
   }));
+  if (new Set(groups.map((group) => group.teamId)).size !== groups.length) {
+    return NextResponse.json({ ok: false, error: "Each team can appear only once in a roster save." }, { status: 400 });
+  }
   const seenStudents = new Set<string>();
   for (const group of groups) {
     if (!group.teamId) {
@@ -227,6 +234,9 @@ export async function PUT(request: Request) {
     supabase.from("teams").select("id"),
     supabase.from("team_members").select("team_id,student_id")
   ]);
+  if (teamResult.error || membershipResult.error) {
+    return NextResponse.json({ ok: false, error: teamResult.error?.message ?? membershipResult.error?.message }, { status: 500 });
+  }
   const beforeGroups = (teamResult.data ?? []).map((team) => ({
     teamId: String(team.id),
     memberIds: (membershipResult.data ?? [])
@@ -278,15 +288,15 @@ export async function DELETE(request: Request) {
   const currentUser = (await getAuthenticatedStudent()) ?? (isDemoMode() ? getCurrentDemoUser() : null);
   if (!currentUser) return NextResponse.json({ ok: false, error: "Sign in before removing a team." }, { status: 401 });
   if (currentUser.role !== "admin") return NextResponse.json({ ok: false, error: "Only admins can remove teams." }, { status: 403 });
-  const teamId = body?.teamId?.trim();
+  const teamId = (typeof body?.teamId === "string" ? body.teamId.trim() : "");
   if (!teamId || teamId === "unassigned") return NextResponse.json({ ok: false, error: "A valid team is required." }, { status: 400 });
 
   const supabase = getSupabaseAdmin();
   if (!supabase) {
     const team = mockTeams.find((entry) => entry.id === teamId);
-    const expectedName = team?.name || (team ? `${team.schoolName} ${team.teamDesignation}` : body?.name?.trim());
+    const expectedName = team?.name || (team ? `${team.schoolName} ${team.teamDesignation}` : (typeof body?.name === "string" ? body.name.trim() : ""));
     if (!expectedName) return NextResponse.json({ ok: false, error: "Team not found." }, { status: 404 });
-    if (body?.confirmation?.trim().toLocaleLowerCase() !== expectedName.toLocaleLowerCase()) {
+    if ((typeof body?.confirmation === "string" ? body.confirmation.trim().toLocaleLowerCase() : "") !== expectedName.toLocaleLowerCase()) {
       return NextResponse.json({ ok: false, error: `Type “${expectedName}” to confirm removal.` }, { status: 400 });
     }
     return NextResponse.json({ ok: true, persisted: false, message: `${expectedName} removed for this demo view.` });
@@ -301,7 +311,7 @@ export async function DELETE(request: Request) {
   const team = teamResult.data;
   if (!team) return NextResponse.json({ ok: false, error: "Team not found." }, { status: 404 });
   const expectedName = String(team.name || `${team.school_name} ${team.team_designation}`);
-  if (body?.confirmation?.trim().toLocaleLowerCase() !== expectedName.toLocaleLowerCase()) {
+  if ((typeof body?.confirmation === "string" ? body.confirmation.trim().toLocaleLowerCase() : "") !== expectedName.toLocaleLowerCase()) {
     return NextResponse.json({ ok: false, error: `Type “${expectedName}” to confirm removal.` }, { status: 400 });
   }
 

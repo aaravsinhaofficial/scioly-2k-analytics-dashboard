@@ -124,20 +124,24 @@ function pick(values: Record<string, string>, aliases: string[]) {
 }
 
 function parseRank(value: string) {
-  const match = value.match(/\d+/);
-  return match ? Number(match[0]) : NaN;
+  const match = value.trim().match(/^#?\s*(\d+)(?:st|nd|rd|th)?$/i);
+  const rank = match ? Number(match[1]) : NaN;
+  return Number.isSafeInteger(rank) && rank > 0 ? rank : NaN;
 }
 
 function normalizeDate(value?: string) {
   if (!value) return "";
   const trimmed = value.trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    const parsed = new Date(`${trimmed}T00:00:00Z`);
+    return Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== trimmed ? "" : trimmed;
+  }
 
   const slash = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
   if (slash) {
     const [, month, day, year] = slash;
     const fullYear = year.length === 2 ? `20${year}` : year;
-    return `${fullYear}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+    return normalizeDate(`${fullYear}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`);
   }
 
   const parsed = new Date(trimmed);
@@ -211,7 +215,11 @@ function parseDuosmiumCsv(rawInput: string, options: TournamentParseOptions): Pa
     const participantField = pick(row.values, columnAliases.participants);
     const studentNames = splitStudentNames(participantField);
     const medalColumn = pick(row.values, columnAliases.medal);
-    const rowMedalCutoff = Number(pick(row.values, columnAliases.medalCutoff)) || medalCutoff;
+    const rowMedalValue = pick(row.values, columnAliases.medalCutoff);
+    const parsedMedalCutoff = Number(rowMedalValue);
+    const rowMedalCutoff = rowMedalValue && Number.isSafeInteger(parsedMedalCutoff) && parsedMedalCutoff >= 0
+      ? parsedMedalCutoff
+      : medalCutoff;
     const medalFromColumn = truthyMedal(medalColumn);
     const teamDesignation = inferTeamDesignation(teamField, school);
 
@@ -223,7 +231,7 @@ function parseDuosmiumCsv(rawInput: string, options: TournamentParseOptions): Pa
       continue;
     }
     if (!Number.isFinite(rank)) {
-      warnings.push(`Row ${row.index} (${eventName}) was skipped because its rank is blank.`);
+      warnings.push(`Row ${row.index} (${eventName}) was skipped because its rank is not a positive whole number.`);
       continue;
     }
     if (studentNames.length === 0) warnings.push(`Row ${row.index} (${eventName}) needs participant matching.`);
@@ -253,7 +261,9 @@ function parseDuosmiumCsv(rawInput: string, options: TournamentParseOptions): Pa
     options.tournamentName?.trim() ||
     firstMetadataValue(rows, columnAliases.tournament) ||
     "Duosmium Tournament";
-  const date = normalizeDate(options.date) || normalizeDate(firstMetadataValue(rows, columnAliases.date)) || new Date().toISOString().slice(0, 10);
+  const sourceDate = options.date || firstMetadataValue(rows, columnAliases.date);
+  const date = normalizeDate(sourceDate) || new Date().toISOString().slice(0, 10);
+  if (sourceDate && !normalizeDate(sourceDate)) missingFields.push("Enter a valid tournament date.");
 
   if (performances.length === 0) missingFields.push("No placements were extracted.");
 
@@ -289,7 +299,9 @@ function parseManualDump(rawInput: string, options: TournamentParseOptions): Par
     options.tournamentName?.trim() ||
     lines.find((line) => !/^schools?:/i.test(line) && !/\b20\d{2}-\d{2}-\d{2}\b/.test(line) && !line.includes(":")) ||
     "Manual Tournament";
-  const date = normalizeDate(options.date) || dateMatch?.[1] || new Date().toISOString().slice(0, 10);
+  const sourceDate = options.date || dateMatch?.[1];
+  const date = normalizeDate(sourceDate) || new Date().toISOString().slice(0, 10);
+  if (sourceDate && !normalizeDate(sourceDate)) missingFields.push("Enter a valid tournament date.");
   const performances: ParsedTournamentSeed["performances"] = [];
 
   for (const line of lines) {
@@ -297,7 +309,11 @@ function parseManualDump(rawInput: string, options: TournamentParseOptions): Par
     if (!match) continue;
     const [, eventName, studentField, teamDesignation = "A", rankValue] = match;
     const studentNames = splitStudentNames(studentField);
-    const rank = Number(rankValue);
+    const rank = parseRank(rankValue);
+    if (!Number.isFinite(rank)) {
+      warnings.push(`${eventName}: skipped because its rank is not a positive whole number.`);
+      continue;
+    }
     if (studentNames.length === 0) continue;
     performances.push({
       rowKey: `manual-${performances.length + 1}`,

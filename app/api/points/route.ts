@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { activityLabels, calculateActivityPoints } from "@/lib/activity";
+import { activityInputError, activityLabels, calculateActivityPoints } from "@/lib/activity";
 import { invalidateAnalyticsCache } from "@/lib/analytics-cache";
 import { getCurrentDemoUser } from "@/lib/analytics";
 import { getAuthenticatedStudent } from "@/lib/auth";
@@ -211,19 +211,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "A valid activity is required." }, { status: 400 });
   }
 
-  const numericInputs = [
-    ["Minutes", body.minutes],
-    ["Quantity", body.quantity],
-    ["Custom points", body.customPoints]
-  ] as const;
-
-  for (const [label, value] of numericInputs) {
-    if (value !== undefined && (typeof value !== "number" || !Number.isFinite(value) || value < 0)) {
-      return NextResponse.json(
-        { ok: false, error: `${label} must be a non-negative number.` },
-        { status: 400 }
-      );
-    }
+  const numericError = activityInputError(body);
+  if (numericError) {
+    return NextResponse.json({ ok: false, error: numericError }, { status: 400 });
   }
 
   if (

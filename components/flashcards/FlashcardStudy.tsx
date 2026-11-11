@@ -11,6 +11,8 @@ export function FlashcardStudy({ deck }: { deck: FlashcardDeck }) {
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [removing, setRemoving] = useState(false);
   const card = deck.cards[index];
 
   function move(direction: -1 | 1) {
@@ -46,15 +48,22 @@ export function FlashcardStudy({ deck }: { deck: FlashcardDeck }) {
   }
 
   async function remove() {
+    if (removing) return;
     if (!window.confirm(`Remove “${deck.title}” from the team library?`)) return;
-    const response = await fetch(`/api/flashcards/${deck.id}`, { method: "DELETE" });
-    const payload = await response.json() as FlashcardMutationResponse;
-    if (!response.ok || !payload.ok) {
-      setMessage(payload.error ?? "Could not remove this deck.");
-      return;
+    setRemoving(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch(`/api/flashcards/${deck.id}`, { method: "DELETE" });
+      const payload = await response.json() as FlashcardMutationResponse;
+      if (!response.ok || !payload.ok) throw new Error(payload.error ?? "Could not remove this deck.");
+      router.push("/flashcards");
+      router.refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not remove this deck. Please try again.");
+    } finally {
+      setRemoving(false);
     }
-    router.push("/flashcards");
-    router.refresh();
   }
 
   if (!card) return <div className="rounded-md border border-court-line bg-court-panel p-8 text-zinc-500">This deck has no cards.</div>;
@@ -72,9 +81,10 @@ export function FlashcardStudy({ deck }: { deck: FlashcardDeck }) {
           <div className="flex flex-wrap items-start gap-2">
             <FlashcardVoteButtons deck={deck} />
             <button type="button" onClick={share} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-court-line px-3 text-sm font-semibold text-cyan-300 hover:border-cyan-400"><Copy className="h-4 w-4" /> Share</button>
-            {deck.canModerate ? <button type="button" onClick={remove} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-red-300/30 px-3 text-sm font-semibold text-red-300 hover:bg-red-300/10"><Trash2 className="h-4 w-4" /> Remove</button> : null}
+            {deck.canModerate ? <button type="button" disabled={removing} onClick={remove} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-red-300/30 px-3 text-sm font-semibold text-red-300 hover:bg-red-300/10"><Trash2 className="h-4 w-4" /> Remove</button> : null}
           </div>
         </div>
+        {error ? <p className="mt-3 text-sm text-red-300" role="alert">{error}</p> : null}
         {message ? <p className="mt-3 break-all text-xs text-emerald-300" role="status">{message}</p> : null}
       </section>
 

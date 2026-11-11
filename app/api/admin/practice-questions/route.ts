@@ -47,8 +47,8 @@ function normalize(input: QuestionInput) {
     if (new Set(options.map((option) => option.toLocaleLowerCase())).size !== options.length) {
       return { error: "Each answer choice must be different." } as const;
     }
-    const correctOption = Number(input.correctOption);
-    if (!Number.isInteger(correctOption) || correctOption < 0 || correctOption >= options.length) {
+    const correctOption = input.correctOption;
+    if (typeof correctOption !== "number" || !Number.isInteger(correctOption) || correctOption < 0 || correctOption >= options.length) {
       return { error: "Choose the correct MCQ answer." } as const;
     }
     return { value: {

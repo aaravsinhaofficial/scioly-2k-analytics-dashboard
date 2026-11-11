@@ -151,6 +151,8 @@ export function AppShell({
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
   const [shortcutLabel, setShortcutLabel] = useState("Ctrl K");
   const searchReturnFocusRef = useRef<HTMLElement | null>(null);
 
@@ -215,11 +217,19 @@ export function AppShell({
   }, [menuOpen]);
 
   async function signOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    setSignOutError(null);
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
-    } finally {
+      const response = await fetch("/api/auth/logout", { method: "POST" });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) throw new Error("Sign-out failed.");
       router.push("/login");
       router.refresh();
+    } catch {
+      setSignOutError("Could not sign out. Check your connection and try again.");
+    } finally {
+      setSigningOut(false);
     }
   }
 
@@ -286,11 +296,13 @@ export function AppShell({
         <button
           type="button"
           onClick={signOut}
+          disabled={signingOut}
           className="mt-1 flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-sm text-zinc-600 transition-colors hover:bg-red-300/10 hover:text-red-300"
         >
           <LogOut className="h-[18px] w-[18px]" aria-hidden="true" />
-          Sign out
+          {signingOut ? "Signing out…" : "Sign out"}
         </button>
+        {signOutError ? <p role="alert" className="px-3 py-2 text-xs text-red-300">{signOutError}</p> : null}
         <div className="mt-2 flex items-center gap-4 px-3 text-xs text-zinc-500">
           <Link href="/privacy" onClick={() => setMenuOpen(false)} className="hover:text-white">Privacy</Link>
           <Link href="/terms" onClick={() => setMenuOpen(false)} className="hover:text-white">Terms</Link>

@@ -27,7 +27,7 @@ interface GlobalSearchProps {
   onClose: () => void;
 }
 
-const queryCache = new Map<string, SearchResult[]>();
+const queryCache = new Map<string, { results: SearchResult[]; expiresAt: number }>();
 const groupOrder: SearchResultGroup[] = [
   "Quick actions",
   "Pages",
@@ -76,7 +76,7 @@ function cacheResults(key: string, results: SearchResult[]) {
     const oldestKey = queryCache.keys().next().value;
     if (typeof oldestKey === "string") queryCache.delete(oldestKey);
   }
-  queryCache.set(key, results);
+  queryCache.set(key, { results, expiresAt: Date.now() + 60_000 });
 }
 
 export function GlobalSearch({ role, userId, onClose }: GlobalSearchProps) {
@@ -95,13 +95,22 @@ export function GlobalSearch({ role, userId, onClose }: GlobalSearchProps) {
     () => pageSearchCandidatesForUser(role, userId),
     [role, userId]
   );
-  const normalizedQuery = normalizeSearchText(query);
+  const normalizedQuery = normalizeSearchText(query).slice(0, 64);
 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
     if (!dialog.open) dialog.showModal();
     requestAnimationFrame(() => inputRef.current?.focus());
+  }, []);
+
+  useEffect(() => {
+    const invalidate = () => {
+      queryCache.clear();
+      setRetryKey((current) => current + 1);
+    };
+    window.addEventListener("scioly:data-updated", invalidate);
+    return () => window.removeEventListener("scioly:data-updated", invalidate);
   }, []);
 
   useEffect(() => {
@@ -112,15 +121,18 @@ export function GlobalSearch({ role, userId, onClose }: GlobalSearchProps) {
       return;
     }
 
-    const cacheKey = `${role}:${normalizedQuery}`;
+    const cacheKey = `${userId}:${role}:${normalizedQuery}`;
     const cached = queryCache.get(cacheKey);
-    if (cached) {
-      setRemoteResults(cached);
+    if (cached && cached.expiresAt > Date.now()) {
+      setRemoteResults(cached.results);
       setLoading(false);
       setError(null);
       return;
     }
 
+    setRemoteResults([]);
+    setLoading(true);
+    setError(null);
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       setLoading(true);
@@ -132,10 +144,11 @@ export function GlobalSearch({ role, userId, onClose }: GlobalSearchProps) {
         });
         const payload = await response.json() as SearchResponse;
         if (!response.ok || !payload.ok) throw new Error(payload.error ?? "Search could not load.");
+        if (controller.signal.aborted) return;
         cacheResults(cacheKey, payload.results);
         setRemoteResults(payload.results);
       } catch (caught) {
-        if (caught instanceof DOMException && caught.name === "AbortError") return;
+        if (controller.signal.aborted) return;
         setRemoteResults([]);
         setError(caught instanceof Error ? caught.message : "Search could not load.");
       } finally {
@@ -147,7 +160,7 @@ export function GlobalSearch({ role, userId, onClose }: GlobalSearchProps) {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [normalizedQuery, retryKey, role]);
+  }, [normalizedQuery, retryKey, role, userId]);
 
   const results = useMemo(() => {
     const local = pageCandidates

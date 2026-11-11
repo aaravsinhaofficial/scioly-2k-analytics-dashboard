@@ -2,7 +2,8 @@
 
 import { FileUp, Plus, Search, Trash2, X } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FlashcardVoteButtons } from "@/components/flashcards/FlashcardVoteButtons";
 import { cardsFromCsv } from "@/lib/flashcard-csv";
 import type { FlashcardDeckSummary, FlashcardMutationResponse } from "@/lib/flashcard-types";
@@ -22,7 +23,9 @@ function emptyCards(): EditableCard[] {
 }
 
 export function FlashcardHub({ initialDecks, eventNames }: FlashcardHubProps) {
+  const router = useRouter();
   const [decks, setDecks] = useState(initialDecks);
+  useEffect(() => { setDecks(initialDecks); }, [initialDecks]);
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -33,6 +36,7 @@ export function FlashcardHub({ initialDecks, eventNames }: FlashcardHubProps) {
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filtered = useMemo(() => {
@@ -93,6 +97,7 @@ export function FlashcardHub({ initialDecks, eventNames }: FlashcardHubProps) {
       setStatus(payload.message ?? "Deck published.");
       resetForm();
       setCreating(false);
+      if (payload.persisted !== false) router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not publish this deck.");
     } finally {
@@ -101,16 +106,23 @@ export function FlashcardHub({ initialDecks, eventNames }: FlashcardHubProps) {
   }
 
   async function removeDeck(deck: FlashcardDeckSummary) {
+    if (removingId) return;
     if (!window.confirm(`Remove “${deck.title}” from the team library?`)) return;
+    setRemovingId(deck.id);
     setError("");
-    const response = await fetch(`/api/flashcards/${deck.id}`, { method: "DELETE" });
-    const payload = await response.json() as FlashcardMutationResponse;
-    if (!response.ok || !payload.ok) {
-      setError(payload.error ?? "Could not remove this deck.");
-      return;
+    setStatus("");
+    try {
+      const response = await fetch(`/api/flashcards/${deck.id}`, { method: "DELETE" });
+      const payload = await response.json() as FlashcardMutationResponse;
+      if (!response.ok || !payload.ok) throw new Error(payload.error ?? "Could not remove this deck.");
+      setDecks((current) => current.filter((entry) => entry.id !== deck.id));
+      setStatus(payload.message ?? "Deck removed.");
+      if (payload.persisted !== false) router.refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not remove this deck. Please try again.");
+    } finally {
+      setRemovingId(null);
     }
-    setDecks((current) => current.filter((entry) => entry.id !== deck.id));
-    setStatus(payload.message ?? "Deck removed.");
   }
 
   return (
@@ -198,7 +210,7 @@ export function FlashcardHub({ initialDecks, eventNames }: FlashcardHubProps) {
               <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-court-line pt-4 text-xs text-zinc-500">
                 <span>{deck.cardCount} cards</span><span aria-hidden="true">·</span><span>By {deck.authorName}</span><span aria-hidden="true">·</span><span>{new Date(deck.createdAt).toLocaleDateString("en-US", { timeZone: "UTC" })}</span>
                 {deck.id.startsWith("preview-") ? <span className="rounded-full bg-amber-300/10 px-2 py-1 text-amber-200">Preview only</span> : <Link href={`/flashcards/${deck.id}`} className="font-semibold text-cyan-300 hover:text-white">Study deck →</Link>}
-                {deck.canModerate ? <button type="button" onClick={() => removeDeck(deck)} className="ml-auto text-red-300 hover:text-red-200">Remove</button> : null}
+                {deck.canModerate ? <button type="button" disabled={removingId !== null} onClick={() => removeDeck(deck)} className="ml-auto text-red-300 hover:text-red-200">Remove</button> : null}
               </div>
             </article>
           ))}

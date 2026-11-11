@@ -3,28 +3,9 @@ import { invalidateAnalyticsCache } from "@/lib/analytics-cache";
 import { getAuthenticatedStudent } from "@/lib/auth";
 import { getSupabaseAdmin, hasSupabaseConfig } from "@/lib/supabase";
 import { roleMeets } from "@/lib/utils";
+import { rankTestoffResults, shouldActivateTestoffSeason, validateTestoffInput } from "@/lib/testoff-input";
 
 export const dynamic = "force-dynamic";
-
-interface TestoffResultInput {
-  studentId?: string;
-  rawScore?: number;
-  notes?: string;
-}
-
-interface TestoffRequestBody {
-  seasonId?: number;
-  seasonName?: string;
-  eventId?: number;
-  eventName?: string;
-  eventCategory?: "study" | "build";
-  name?: string;
-  date?: string;
-  maxScore?: number;
-  weight?: number;
-  notes?: string;
-  results?: TestoffResultInput[];
-}
 
 function failure(error: string, status: number) {
   return NextResponse.json({ ok: false, error }, { status });
@@ -41,22 +22,6 @@ function seasonDates(date: string) {
   };
 }
 
-function rankedResults(results: Array<{ studentId: string; rawScore: number; notes?: string }>) {
-  const sorted = [...results].sort(
-    (left, right) => right.rawScore - left.rawScore || left.studentId.localeCompare(right.studentId)
-  );
-  let displayedRank = 0;
-  let previousScore: number | undefined;
-
-  return sorted.map((result, index) => {
-    if (previousScore === undefined || Math.abs(result.rawScore - previousScore) > 0.0005) {
-      displayedRank = index + 1;
-      previousScore = result.rawScore;
-    }
-    return { ...result, rank: displayedRank };
-  });
-}
-
 export async function POST(request: Request) {
   if (!hasSupabaseConfig()) {
     return failure("Testoff entry requires the Vercel/Supabase deployment.", 503);
@@ -66,51 +31,14 @@ export async function POST(request: Request) {
   if (!currentUser) return failure("Sign in before entering testoff scores.", 401);
   if (!roleMeets(currentUser.role, "officer")) return failure("Officer access is required.", 403);
 
-  let body: TestoffRequestBody;
-  try {
-    body = (await request.json()) as TestoffRequestBody;
-  } catch {
-    return failure("The request body must be valid JSON.", 400);
-  }
-
-  const name = body.name?.trim();
-  const date = body.date?.trim();
-  const eventId = Number(body.eventId);
-  const eventName = body.eventName?.trim();
-  const eventCategory = body.eventCategory === "build" ? "build" : "study";
-  const maxScore = Number(body.maxScore);
-  const weight = Number(body.weight ?? 1);
-  const requestedSeasonId = Number(body.seasonId);
-  const requestedSeasonName = body.seasonName?.trim();
-
-  if (!name || name.length > 120) return failure("Enter a session name up to 120 characters.", 400);
-  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(`${date}T12:00:00Z`).getTime())) {
-    return failure("Enter a valid session date.", 400);
-  }
-  const hasExistingEvent = Number.isInteger(eventId) && eventId > 0;
-  if (!hasExistingEvent && (!eventName || eventName.length > 120)) {
-    return failure("Choose an event or enter a new event name up to 120 characters.", 400);
-  }
-  if (!Number.isFinite(maxScore) || maxScore <= 0) return failure("Maximum score must be greater than zero.", 400);
-  if (!Number.isFinite(weight) || weight <= 0 || weight > 10) {
-    return failure("Weight must be greater than zero and no more than 10.", 400);
-  }
-
-  const rawResults = Array.isArray(body.results) ? body.results : [];
-  const results = rawResults.flatMap((entry) => {
-    const studentId = entry.studentId?.trim();
-    const rawScore = Number(entry.rawScore);
-    if (!studentId || !Number.isFinite(rawScore)) return [];
-    return [{ studentId, rawScore, notes: entry.notes?.trim() || undefined }];
-  });
-
-  if (results.length === 0) return failure("Enter at least one student score.", 400);
-  if (new Set(results.map((result) => result.studentId)).size !== results.length) {
-    return failure("Each student can appear only once in a testoff session.", 400);
-  }
-  if (results.some((result) => result.rawScore < 0 || result.rawScore > maxScore)) {
-    return failure(`Scores must be between 0 and ${maxScore}.`, 400);
-  }
+  const body = await request.json().catch(() => null);
+  const validated = validateTestoffInput(body);
+  if (!validated.data) return failure(validated.error, 400);
+  const {
+    name, date, eventId, eventName, eventCategory, maxScore, weight,
+    seasonId: requestedSeasonId, seasonName: requestedSeasonName, results, notes
+  } = validated.data;
+  const hasExistingEvent = eventId !== undefined;
 
   const supabase = getSupabaseAdmin();
   if (!supabase) return failure("SUPABASE_SERVICE_ROLE_KEY is missing.", 503);
@@ -124,20 +52,24 @@ export async function POST(request: Request) {
     return failure("One or more selected students no longer exist or are archived.", 400);
   }
 
-  const eventQuery = hasExistingEvent
-    ? supabase.from("events").select("id,name").eq("id", eventId).maybeSingle()
-    : supabase
-        .from("events")
-        .upsert({ name: eventName, category: eventCategory }, { onConflict: "name" })
-        .select("id,name")
-        .single();
-  const { data: event, error: eventError } = await eventQuery;
+  // Reusing an existing event name must not change its category.
+  if (!hasExistingEvent) {
+    const { error } = await supabase.from("events").upsert(
+      { name: eventName, category: eventCategory },
+      { onConflict: "name", ignoreDuplicates: true }
+    );
+    if (error) return failure(error.message, 500);
+  }
+  const eventQuery = supabase.from("events").select("id,name");
+  const { data: event, error: eventError } = await (hasExistingEvent
+    ? eventQuery.eq("id", eventId)
+    : eventQuery.eq("name", eventName)).maybeSingle();
   if (eventError) return failure(eventError.message, 500);
   if (!event) return failure("The selected event no longer exists.", 404);
   const resolvedEventId = Number(event.id);
 
   let season: { id: number; name: string } | null = null;
-  if (Number.isInteger(requestedSeasonId) && requestedSeasonId > 0) {
+  if (requestedSeasonId !== undefined) {
     const { data, error } = await supabase
       .from("seasons")
       .select("id,name")
@@ -154,7 +86,7 @@ export async function POST(request: Request) {
     const { data: existingSeason, error: existingError } = await supabase
       .from("seasons")
       .select("id,name")
-      .ilike("name", seasonName)
+      .ilike("name", seasonName.replace(/[\\%_]/g, "\\$&"))
       .limit(1)
       .maybeSingle();
     if (existingError) return failure(existingError.message, 500);
@@ -164,7 +96,7 @@ export async function POST(request: Request) {
     } else {
       const { data: activeSeason, error: activeError } = await supabase
         .from("seasons")
-        .select("id")
+        .select("id,start_date")
         .eq("is_active", true)
         .limit(1)
         .maybeSingle();
@@ -183,7 +115,7 @@ export async function POST(request: Request) {
       if (createSeasonError || !createdSeason) {
         return failure(createSeasonError?.message ?? "Could not create the season.", 500);
       }
-      if (activeSeason && Number(activeSeason.id) !== Number(createdSeason.id)) {
+      if (activeSeason && shouldActivateTestoffSeason(dates.startDate, String(activeSeason.start_date)) && Number(activeSeason.id) !== Number(createdSeason.id)) {
         const { error: deactivateError } = await supabase
           .from("seasons")
           .update({ is_active: false })
@@ -215,7 +147,7 @@ export async function POST(request: Request) {
       date,
       max_score: maxScore,
       weight,
-      notes: body.notes?.trim() || null,
+      notes: notes || null,
       created_by: currentUser.id
     })
     .select("id")
@@ -231,7 +163,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const ranked = rankedResults(results);
+  const ranked = rankTestoffResults(results);
   const { data: savedResults, error: resultError } = await supabase
     .from("testoff_results")
     .insert(
@@ -268,7 +200,7 @@ export async function POST(request: Request) {
         date,
         max_score: maxScore,
         weight,
-        notes: body.notes?.trim() || null,
+        notes: notes || null,
         created_by: currentUser.id
       },
       results: savedResults ?? ranked

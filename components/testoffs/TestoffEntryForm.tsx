@@ -4,13 +4,19 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ClipboardCheck, Loader2, Save, Search, Users } from "lucide-react";
 import type { EventCategory, TestoffAdminData } from "@/lib/types";
+import { rankTestoffResults } from "@/lib/testoff-input";
 
 interface TestoffEntryFormProps {
   data: TestoffAdminData;
 }
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  // Use the school's date on both the server and client, including late evenings.
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit"
+  }).formatToParts(new Date());
+  const part = (type: string) => parts.find((entry) => entry.type === type)?.value;
+  return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
 function seasonNameForDate(value: string) {
@@ -21,21 +27,10 @@ function seasonNameForDate(value: string) {
 }
 
 function previewRanks(scores: Record<string, string>) {
-  const ordered = Object.entries(scores)
+  const results = Object.entries(scores)
     .filter(([, value]) => value.trim() !== "" && Number.isFinite(Number(value)))
-    .map(([studentId, value]) => ({ studentId, score: Number(value) }))
-    .sort((left, right) => right.score - left.score || left.studentId.localeCompare(right.studentId));
-  const ranks = new Map<string, number>();
-  let rank = 0;
-  let prior: number | undefined;
-  ordered.forEach((entry, index) => {
-    if (prior === undefined || Math.abs(entry.score - prior) > 0.0005) {
-      rank = index + 1;
-      prior = entry.score;
-    }
-    ranks.set(entry.studentId, rank);
-  });
-  return ranks;
+    .map(([studentId, value]) => ({ studentId, rawScore: Number(value) }));
+  return new Map(rankTestoffResults(results).map((result) => [result.studentId, result.rank]));
 }
 
 export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
@@ -347,6 +342,7 @@ export function TestoffEntryForm({ data }: TestoffEntryFormProps) {
                   <td className="px-4 py-3 text-right">
                     <input
                       type="number"
+                      aria-label={`Raw score for ${student.name}`}
                       min="0"
                       max={Number(maxScore) || undefined}
                       step="any"
