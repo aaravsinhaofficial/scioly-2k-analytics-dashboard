@@ -15,7 +15,7 @@ interface RosterTableProps {
 }
 
 const columns: Array<{ key: SortKey; label: string; align?: "right" | "left"; secondary?: boolean }> = [
-  { key: "rank", label: "Rank" },
+  { key: "rank", label: "Competition rank" },
   { key: "name", label: "Student" },
   { key: "readiness", label: "Readiness", align: "right" },
   { key: "study", label: "Study", align: "right", secondary: true },
@@ -28,21 +28,21 @@ const columns: Array<{ key: SortKey; label: string; align?: "right" | "left"; se
 
 function sortValue(player: PlayerDetail, key: SortKey) {
   switch (key) {
-    case "rank": return player.rank;
+    case "rank": return player.avgPlacement ?? 0;
     case "name": return player.name;
     case "readiness": return player.readinessScore;
     case "study": return player.studyRating ?? -1;
     case "build": return player.buildRating ?? -1;
     case "points30": return player.thirtyDayPoints;
-    case "avg": return player.avgPlacement ?? 999;
+    case "avg": return player.avgPlacement ?? 0;
     case "medals": return player.medalCount;
     case "events": return player.profileEvents?.join(", ") ?? "";
   }
 }
 
 export function RosterTable({ players }: RosterTableProps) {
-  const [sortKey, setSortKey] = useState<SortKey>("readiness");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [sortKey, setSortKey] = useState<SortKey>("avg");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [searchQuery, setSearchQuery] = useState("");
   const [teamFilter, setTeamFilter] = useState("all");
   const [showAllColumns, setShowAllColumns] = useState(false);
@@ -51,6 +51,26 @@ export function RosterTable({ players }: RosterTableProps) {
     () => Array.from(new Set(players.map((player) => player.teamDesignation))).sort(),
     [players]
   );
+
+  const competitionRanks = useMemo(() => {
+    const rankedPlayers = [...players]
+      .filter((player) => typeof player.avgPlacement === "number" && Number.isFinite(player.avgPlacement))
+      .sort((a, b) => a.avgPlacement! - b.avgPlacement!);
+    const ranks = new Map<string, number>();
+    let rank = 0;
+    let previousPlacement: number | undefined;
+    rankedPlayers.forEach((player, index) => {
+      if (player.avgPlacement !== previousPlacement) rank = index + 1;
+      ranks.set(player.id, rank);
+      previousPlacement = player.avgPlacement;
+    });
+    return ranks;
+  }, [players]);
+
+  function displayRank(player: PlayerDetail) {
+    const rank = competitionRanks.get(player.id);
+    return rank === undefined ? "—" : `#${rank}`;
+  }
 
   const sortedPlayers = useMemo(() => {
     const normalizedSearch = searchQuery.trim().toLowerCase();
@@ -66,6 +86,12 @@ export function RosterTable({ players }: RosterTableProps) {
         return matchesTeam && matchesSearch;
       })
       .sort((a, b) => {
+        if (sortKey === "avg" || sortKey === "rank") {
+          const aHasPlacement = typeof a.avgPlacement === "number" && Number.isFinite(a.avgPlacement);
+          const bHasPlacement = typeof b.avgPlacement === "number" && Number.isFinite(b.avgPlacement);
+          if (aHasPlacement !== bHasPlacement) return aHasPlacement ? -1 : 1;
+          if (!aHasPlacement && !bHasPlacement) return a.name.localeCompare(b.name);
+        }
         const aValue = sortValue(a, sortKey);
         const bValue = sortValue(b, sortKey);
         const modifier = sortDirection === "asc" ? 1 : -1;
@@ -201,7 +227,7 @@ export function RosterTable({ players }: RosterTableProps) {
               {sortedPlayers.map((player) => (
                 <tr key={player.id} className="border-t border-court-line transition-colors hover:bg-court-elevated">
                   {visibleColumns.map((column) => {
-                    if (column.key === "rank") return <td key={column.key} className="px-4 py-3 text-sm tabular-nums text-zinc-500">#{player.rank}</td>;
+                    if (column.key === "rank") return <td key={column.key} className="px-4 py-3 text-sm tabular-nums text-zinc-500">{displayRank(player)}</td>;
                     if (column.key === "name") return (
                       <td key={column.key} className="px-4 py-3">
                         <Link href={`/profile/${player.id}`} className="flex items-center gap-3 text-left">
@@ -235,7 +261,7 @@ export function RosterTable({ players }: RosterTableProps) {
               className="block w-full p-4 text-left transition-colors hover:bg-court-elevated"
             >
               <span className="flex items-start gap-3">
-                <span className="pt-2 text-xs font-medium tabular-nums text-zinc-500">#{player.rank}</span>
+                <span className="pt-2 text-xs font-medium tabular-nums text-zinc-500">{displayRank(player)}</span>
                 <Avatar name={player.name} src={player.profilePictureUrl} size="md" />
                 <span className="min-w-0 flex-1">
                   <span className="flex items-start justify-between gap-3">
